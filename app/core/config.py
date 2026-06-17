@@ -57,6 +57,8 @@ class Settings(BaseSettings):
     # Local embedded Chroma store (no separate server needed in dev).
     chroma_path: str = Field(default=".chroma")
     chroma_collection: str = Field(default="articles")
+    # Past published/accepted posts live in their own collection for dedup (Phase 6).
+    chroma_posts_collection: str = Field(default="posts")
 
     # --- Generator (Phase 5) -------------------------------------------------
     rag_top_k: int = Field(default=5)  # grounding articles pulled per topic
@@ -69,6 +71,18 @@ class Settings(BaseSettings):
             "No hype, no clickbait, no false claims, no hashtags stuffing."
         )
     )
+
+    # --- Quality gates (Phase 6) ---------------------------------------------
+    quality_gates_enabled: bool = Field(default=True)  # run dedup + fact-check after generate
+    # Gate 1 — duplicate detection. Cosine similarity (0–1) to the nearest past
+    # post above this is "too similar"; regenerate up to N times before flagging.
+    dedup_similarity_threshold: float = Field(default=0.85)
+    dedup_max_regen_tries: int = Field(default=2)
+    # Gate 2 — fact check. Cap claims verified per post (bounds LLM latency on CPU);
+    # claims shorter than this are treated as fluff and skipped.
+    factcheck_max_claims: int = Field(default=6)
+    factcheck_min_claim_chars: int = Field(default=40)
+    factcheck_rag_k: int = Field(default=3)  # candidate sources fetched per claim
 
     # --- Collector sources (Phase 2) -----------------------------------------
     github_token: str = Field(default="")

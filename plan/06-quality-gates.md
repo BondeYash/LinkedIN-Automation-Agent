@@ -47,12 +47,27 @@ app/ai/prompts/regeneration.txt
 3. A clean, grounded draft → passes both gates with no flags.
 
 ## Done checklist
-- [ ] Cosine similarity check against past posts works
-- [ ] Threshold configurable in `.env`
-- [ ] Too-similar drafts auto-regenerate (capped tries)
-- [ ] Accepted posts added to ChromaDB
-- [ ] Claims extracted and checked against sources
-- [ ] Unsupported claims flagged + status set
-- [ ] Committed to git
+- [x] Cosine similarity check against past posts works — `app/ai/dedup.py` (`PostDedup`, own `posts` Chroma collection)
+- [x] Threshold configurable in `.env` — `dedup_similarity_threshold` (default 0.85)
+- [x] Too-similar drafts auto-regenerate (capped tries) — `dedup_max_regen_tries`, `regeneration.txt` appended
+- [x] Accepted posts added to ChromaDB — `PostDedup.add()` after a draft passes Gate 1
+- [x] Claims extracted and checked against sources — `app/ai/factcheck.py` (sentence split + single batched LLM call)
+- [x] Unsupported claims flagged + status set — `status=NEEDS_REVIEW`, findings in `review_notes`
+- [x] Committed to git
+
+## Notes (implementation)
+- Gates injected into `GeneratorService` (default `None` → skipped) so the generator runs
+  standalone and the existing 27 tests need no vector store. The API wires real gates when
+  `quality_gates_enabled` is set.
+- Gate 1 (`dedup.py`): reuses our sentence-transformers embedder; Chroma cosine distance →
+  similarity = `1 - distance`. Regeneration loop lives in `GeneratorService._dedup_loop`.
+  Still-too-similar after N tries → `review_notes["duplicate"]` + NEEDS_REVIEW (not indexed).
+- Gate 2 (`factcheck.py`): deterministic sentence split (drops short fluff), RAG sources per
+  claim, then ONE batched LLM call (`factcheck.txt`) returning `{"claims":[{index,supported}]}`.
+  Parsing fails CLOSED (unparseable → unsupported). One LLM call/post bounds CPU latency.
+- New: `PostStatus.NEEDS_REVIEW`, `generated_posts.review_notes` (JSON) + Alembic migration
+  `4a175e31e136` (adds enum value via `ALTER TYPE ... ADD VALUE IF NOT EXISTS`, Postgres-only).
+- 12 new tests (dedup math, claim split, fact-check parse/flow, generator gate wiring); full
+  suite 39 green; app builds with gates mounted. No new pip packages.
 
 Next: `07-approval-system.md`

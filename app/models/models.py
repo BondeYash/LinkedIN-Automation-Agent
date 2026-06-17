@@ -148,6 +148,9 @@ class GeneratedPost(Base):
     best_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     trend_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Quality-gate findings (Phase 6): {"duplicate": {...}, "unsupported_claims": [...]}.
+    # NULL means the gates passed clean; a human reads this when status is NEEDS_REVIEW.
+    review_notes: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     status: Mapped[PostStatus] = mapped_column(
         Enum(PostStatus), default=PostStatus.DRAFT, nullable=False, index=True
     )

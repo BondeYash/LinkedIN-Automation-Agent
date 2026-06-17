@@ -1,0 +1,6 @@
+
+IMPORTANT — REGENERATION REQUIRED
+Your previous draft was too similar (cosine similarity {similarity}) to a post we
+already published. Write a genuinely DIFFERENT post on this topic: a fresh angle,
+different structure, a different opening line and call-to-action. Do not reuse the
+earlier framing. Stay grounded in the same facts and within the same brand rules.

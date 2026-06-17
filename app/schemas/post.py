@@ -27,5 +27,6 @@ class PostOut(BaseModel):
     hashtags: list
     reason: str | None
     trend_score: float | None
+    review_notes: dict | None = None
     status: PostStatus
     created_at: datetime

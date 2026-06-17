@@ -16,6 +16,9 @@ from app.repositories.repos import (
     StyleProfileRepository,
     TopicRepository,
 )
+from app.ai.dedup import PostDedup
+from app.ai.factcheck import FactChecker
+from app.core.config import get_settings
 from app.schemas.post import GenerateRequest, PostOut
 from app.services.generator_service import GeneratorService, TopicNotFound
 
@@ -33,7 +36,14 @@ async def generate_post(
     """Generate an original, RAG-grounded LinkedIn draft for a topic. Saved as
     DRAFT; it must pass quality gates (Phase 6) and human approval (Phase 7)
     before it can publish."""
-    service = GeneratorService(topics, articles, styles, posts)
+    settings = get_settings()
+    dedup = factcheck = None
+    if settings.quality_gates_enabled:
+        dedup = PostDedup(settings=settings)
+        factcheck = FactChecker(settings=settings)
+    service = GeneratorService(
+        topics, articles, styles, posts, dedup=dedup, factcheck=factcheck
+    )
     try:
         post = await service.generate(body.topic_id, style_name=body.style_name)
     except TopicNotFound as exc:

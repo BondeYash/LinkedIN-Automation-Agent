@@ -24,6 +24,7 @@ class PostStatus(str, enum.Enum):
     REJECTED = "rejected"
     EDITED = "edited"
     REGENERATE = "regenerate"
+    NEEDS_REVIEW = "needs_review"  # quality gate (Phase 6) flagged it for a human
     PUBLISHED = "published"
     FAILED = "failed"
 
