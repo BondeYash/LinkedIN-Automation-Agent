@@ -42,10 +42,20 @@ app/api/style.py        (optional)
 3. Confirm it stores only patterns/labels — no full copied sentences from sources.
 
 ## Done checklist
-- [ ] Number-features extracted correctly
-- [ ] LLM label-features added (or stubbed until Phase 5)
-- [ ] Style profile saved as JSON in DB
-- [ ] No copied content stored — patterns only
-- [ ] Committed to git
+- [x] Number-features extracted correctly (lengths, sentences, emoji, hashtags, hooks, bullets)
+- [x] LLM label-features added (stubbed via `NullStyleLabeler`; Phase 5 swaps in Ollama)
+- [x] Style profile saved as JSON in DB (upsert by name)
+- [x] No copied content stored — only aggregate numbers + ratios (test asserts no raw text)
+- [x] Committed to git
+
+## Notes (implementation)
+- `app/analyzers/style_features.py` — pure stats, no deps (skipped optional `textstat`).
+- `app/analyzers/style_labeler.py` — `StyleLabeler` Protocol + `NullStyleLabeler` stub
+  so Phase 5 plugs the Ollama labeler in without touching the analyzer.
+- `app/analyzers/style_analyzer.py` — combines numbers + labels, upserts `StyleProfile`.
+- `seed/sample_posts.py` — 5 generic reference posts (written for this project, not copied).
+- API: `POST /style/analyze` (body posts or seed fallback), `GET /style`.
+- live: built `default` from 5 seed posts — ~41 words avg, 2.4 hashtags, all trailing,
+  40% bullets; 6 new tests, full suite green.
 
 Next: `05-ai-generator.md`
