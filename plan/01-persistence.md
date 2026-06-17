@@ -63,11 +63,11 @@ seed/seed.py
 5. Query `users` — admin row exists. Run seed again — no duplicate, no crash.
 
 ## Done checklist
-- [ ] All model classes written with keys + relationships
-- [ ] Alembic set up, first migration applied
-- [ ] All tables visible in the database
-- [ ] Base + specific repositories work
-- [ ] Seed script runs (and is safe to re-run)
-- [ ] Committed to git
+- [x] All model classes written with keys + relationships
+- [x] Alembic set up, first migration applied
+- [x] All tables visible in the database (16 incl. `article_topics` assoc)
+- [x] Base + specific repositories work
+- [x] Seed script runs (and is safe to re-run)
+- [x] Committed to git
 
 Next: `02-collectors.md`
