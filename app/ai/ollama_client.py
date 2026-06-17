@@ -45,6 +45,9 @@ class OllamaClient:
             model=self.settings.ollama_model,
             prompt=prompt,
             format="json" if json_mode else "",
-            options={"temperature": self.settings.ollama_temperature},
+            options={
+                "temperature": self.settings.ollama_temperature,
+                "num_predict": self.settings.ollama_num_predict,
+            },
         )
         return response.get("response", "")

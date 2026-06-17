@@ -70,7 +70,7 @@ app/api/generate.py
 4. Re-run with a different topic → different, relevant post.
 
 ## Done checklist
-- [ ] Ollama installed, model pulled, client works  ← needs the Ollama app + a model pull (pending)
+- [x] Ollama installed (user-space `~/.local/bin/ollama`, no sudo), `llama3.1` pulled, client works
 - [x] Prompt template in a file (editable) — `app/ai/prompts/generation.txt`
 - [x] RAG pulls relevant articles from ChromaDB — `app/ai/rag.py` (embedded PersistentClient, reuses our embedder)
 - [x] Generator returns valid structured JSON — robust `parse_post_json` (fences/prose tolerant, key-validated)
@@ -85,6 +85,9 @@ app/api/generate.py
 - `app/services/generator_service.py` — topic + trend + style + RAG facts → prompt → LLM → parse → DRAFT.
 - Closed the Phase 4 stub: `OllamaStyleLabeler` added (short labels only, never copied text).
 - 6 new tests (parser + full flow with fakes); full suite 27 green; app builds with router mounted.
-- **Live generation pending Ollama**: install the app + `ollama pull <model>`, then `POST /generate`.
+- **Live-verified**: `POST /generate {topic_id:117}` → full grounded DRAFT (headline/hook/body/cta/
+  hashtags/reason) saved id=2, ~2m29s on CPU (no GPU). Facts traced to the topic's RAG articles.
+- CPU notes: raised `ollama_timeout_seconds` to 600 (cold model load is slow) and capped
+  `ollama_num_predict=700` to bound latency. Warm generation ~2.5 min for a full post.
 
 Next: `06-quality-gates.md`

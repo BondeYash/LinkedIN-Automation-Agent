@@ -50,8 +50,9 @@ class Settings(BaseSettings):
     # --- External services ---------------------------------------------------
     ollama_host: str = Field(default="http://localhost:11434")
     ollama_model: str = Field(default="llama3.1")
-    ollama_timeout_seconds: float = Field(default=120.0)
+    ollama_timeout_seconds: float = Field(default=600.0)  # CPU cold-load can be slow
     ollama_temperature: float = Field(default=0.7)
+    ollama_num_predict: int = Field(default=700)  # cap output tokens to bound latency
     chroma_host: str = Field(default="http://localhost:8001")
     # Local embedded Chroma store (no separate server needed in dev).
     chroma_path: str = Field(default=".chroma")
