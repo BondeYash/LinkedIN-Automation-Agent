@@ -22,7 +22,9 @@ logger = logging.getLogger(__name__)
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
-def _is_transient(exc: BaseException) -> bool:
+def is_transient(exc: BaseException) -> bool:
+    """True if `exc` is a retryable network failure (timeout, transport, 5xx, 429);
+    False for 4xx client/auth errors, which must fail fast."""
     if isinstance(exc, (httpx.TimeoutException, httpx.TransportError)):
         return True
     if isinstance(exc, httpx.HTTPStatusError):
@@ -30,11 +32,15 @@ def _is_transient(exc: BaseException) -> bool:
     return False
 
 
+# Back-compat alias (internal callers).
+_is_transient = is_transient
+
+
 def transient_retry(func):
     """Decorator: retry an async HTTP call on transient failures only."""
 
     return retry(
-        retry=retry_if_exception(_is_transient),
+        retry=retry_if_exception(is_transient),
         wait=wait_exponential(multiplier=0.5, min=0.5, max=8),
         stop=stop_after_attempt(3),
         reraise=True,

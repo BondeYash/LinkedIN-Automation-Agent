@@ -51,11 +51,34 @@ api/publishing.py
 4. Token expiry → clear 4xx failure, no infinite retry.
 
 ## Done checklist
-- [ ] `publish` endpoint rejects any non-`APPROVED` post
-- [ ] Real publish stores `linkedin_post_id` + `published_at`
-- [ ] Retry with backoff on transient errors only
-- [ ] Failures persisted (status + error + retry count), pipeline survives
-- [ ] Final text matches the approved preview exactly
-- [ ] Committed to git
+- [x] `publish` endpoint rejects any non-`APPROVED` post — `POST /publish/{id}` (editor JWT) + publisher re-reads & guards (`NotApproved`→409, `PostNotFound`→404)
+- [x] Real publish stores `linkedin_post_id` + `published_at` — `publishing_history` row, post status → `PUBLISHED`
+- [x] Retry with backoff on transient errors only — tenacity `AsyncRetrying` (5xx/timeout/429), 4xx fails fast; `publish_max_tries`
+- [x] Failures persisted (status + error + retry count), pipeline survives — FAILED row, post left `APPROVED` for retry, never raises
+- [x] Final text matches the approved preview exactly — `render_post_text` (headline+hook+body+cta+hashtags), same order as dashboard
+- [x] Committed to git
+
+## Notes (implementation)
+- **Client** (`app/publishers/linkedin_client.py`): thin async httpx wrapper over the
+  UGC Posts endpoint (`/v2/ugcPosts`). Official API only — no scraping. Builds the PUBLIC
+  ShareContent body (author URN + text), Bearer auth, `X-Restli-Protocol-Version: 2.0.0`.
+  Reads the new id from `X-RestLi-Id` header (falls back to body `id`). Raises `httpx`
+  errors verbatim; `LinkedInAuthError` if token/URN missing.
+- **Publisher** (`app/publishers/linkedin_publisher.py`) implements `BasePublisher`:
+  re-reads the post (never trusts the caller), guards `status == APPROVED`, assembles the
+  text via `render_post_text`, retries the client with tenacity `AsyncRetrying` (shared
+  `is_transient` predicate from `utils/http`) counting attempts, then writes a
+  `publishing_history` row + an `audit_logs` row and flips status. On final failure: FAILED
+  row, post stays APPROVED, returns `PublishResult(ok=False)` — pipeline never crashes.
+- **Route** (`app/api/publishing.py`): `POST /publish/{post_id}`, editor/admin only; maps
+  guard errors to 404/409; transient publish failure returns 200 `ok:false`.
+- No migration: `poststatus` already has PUBLISHED/FAILED and `publishstatus` exists from
+  the Phase 1 initial migration; `PublishingRepository` added in Phase 7.
+- Config: `linkedin_access_token`, `linkedin_author_urn`, `linkedin_api_base`,
+  `linkedin_timeout_seconds`, `publish_max_tries`. Deps already present: tenacity, httpx.
+- **Tested** (8 new, fakes, no network/DB): text-order match + empty-skip; guard refuses
+  non-APPROVED + unknown post; success writes history & PUBLISHED; transient retried then
+  succeeds (retries counted); exhausted transient → FAILED row, stays APPROVED; 4xx fails
+  fast (1 call) despite max_tries=5. Full suite 61 green.
 
 Next: `09-analytics.md`

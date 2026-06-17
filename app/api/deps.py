@@ -33,6 +33,7 @@ from app.repositories.repos import (
     TrendRepository,
     UserRepository,
 )
+from app.publishers.linkedin_publisher import LinkedInPublisher
 from app.services.approval_service import ApprovalService
 
 
@@ -93,6 +94,14 @@ def get_approval_service(
     notifier: NotificationService = Depends(get_notification_service),
 ) -> ApprovalService:
     return ApprovalService(posts, approvals, audit, notifier=notifier)
+
+
+def get_linkedin_publisher(
+    posts: PostRepository = Depends(get_post_repo),
+    publishing: PublishingRepository = Depends(get_publishing_repo),
+    audit: AuditLogRepository = Depends(get_audit_repo),
+) -> LinkedInPublisher:
+    return LinkedInPublisher(posts, publishing, audit=audit)
 
 
 # --- Authentication ----------------------------------------------------------

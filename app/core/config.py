@@ -101,6 +101,17 @@ class Settings(BaseSettings):
     sheets_spreadsheet_id: str = Field(default="")
     sheets_worksheet: str = Field(default="Approvals")
 
+    # --- LinkedIn publisher (Phase 8) ----------------------------------------
+    # Official API only — no scraping. One-time OAuth2 gives a member access token
+    # and the author URN; both live in `.env`, never in code.
+    linkedin_access_token: str = Field(default="")  # member OAuth2 access token
+    linkedin_author_urn: str = Field(default="")  # e.g. urn:li:person:xxxx
+    linkedin_api_base: str = Field(default="https://api.linkedin.com")
+    linkedin_timeout_seconds: float = Field(default=20.0)
+    # Retry budget for a transient publish failure (5xx/timeout/429). 4xx auth
+    # errors are never retried — they fail fast so a bad token surfaces at once.
+    publish_max_tries: int = Field(default=5)
+
     # --- Collector sources (Phase 2) -----------------------------------------
     github_token: str = Field(default="")
     devto_api_key: str = Field(default="")
