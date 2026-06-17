@@ -1,0 +1,59 @@
+services:
+  app:
+    build: .
+    container_name: linkedin_agent_app
+    env_file: .env
+    environment:
+      # Point at the compose service names, overriding localhost defaults.
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/linkedin_agent
+      OLLAMA_HOST: http://ollama:11434
+      CHROMA_HOST: http://chromadb:8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+      chromadb:
+        condition: service_started
+    volumes:
+      - ./logs:/app/logs
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: linkedin_agent_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: linkedin_agent
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: linkedin_agent_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: linkedin_agent_chromadb
+    ports:
+      - "8001:8000"
+    volumes:
+      - chroma_data:/data
+
+volumes:
+  postgres_data:
+  ollama_data:
+  chroma_data:
