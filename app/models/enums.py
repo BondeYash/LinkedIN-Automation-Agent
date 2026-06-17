@@ -45,6 +45,7 @@ class NotificationChannel(str, enum.Enum):
     EMAIL = "email"
     TEAMS = "teams"
     SHEETS = "sheets"
+    LOG = "log"  # offline fallback channel (Phase 7)
 
 
 class NotificationStatus(str, enum.Enum):

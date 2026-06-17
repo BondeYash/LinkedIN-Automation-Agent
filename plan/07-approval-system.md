@@ -64,12 +64,31 @@ templates/...
 5. Reject and regenerate also work and are logged.
 
 ## Done checklist
-- [ ] Login + JWT protect routes
-- [ ] Passwords hashed (bcrypt)
-- [ ] All four actions change status + log audit
-- [ ] Dashboard lists pending with score + flags + buttons
-- [ ] Email, Teams, Sheets notifications send with links
-- [ ] Every state change recorded
-- [ ] Committed to git
+- [x] Login + JWT protect routes — `POST /auth/login` → bearer JWT; `get_current_user`/`require_role` deps
+- [x] Passwords hashed (bcrypt) — `app/core/security.py` (already from Phase 1; JWT added here)
+- [x] All four actions change status + log audit — approve/reject/edit/regenerate write `approvals` + `audit_logs`
+- [x] Dashboard lists pending with score + flags + buttons — `GET /admin`, `templates/dashboard.html`
+- [x] Email, Teams, Sheets notifications send with links — `app/notifications/*` (log fallback offline)
+- [x] Every state change recorded — `audit_logs` row per transition
+- [x] Committed to git
+
+## Notes (implementation)
+- **Auth** (`security.py` + `api/auth.py` + `deps.py`): HS256 JWT (`create/decode_access_token`),
+  `HTTPBearer` → `get_current_user` (active-user check), `require_role(...)` factory (ADMIN always
+  allowed). `POST /auth/login` takes the OAuth2 password form; `GET /auth/me` verifies a token.
+- **Approval** (`services/approval_service.py` + `api/approval.py`): `submit` → PENDING (+ notify),
+  `approve/reject/edit/regenerate`; each writes an `approvals` row + an `audit_logs` row, guarded by a
+  status check (`InvalidTransition` → 409, `PostNotFound` → 404). Editors + admins only.
+- **One-click links**: signed, expiring *action* tokens (`create_action_token`) → `GET /approvals/action`
+  acts without a login (token authenticates intent). Distinct token `type` from access tokens.
+- **Notifications** (`app/notifications/`): `Notifier` protocol; `LogNotifier` (always-on offline
+  fallback) + Email (Gmail API), Teams (webhook card), Sheets (gspread) — each lazy-imported and skipped
+  unless configured. `NotificationService.dispatch` fans out, isolates per-channel failures, records one
+  `notifications` row (SENT/FAILED) each. Channels chosen via `notification_channels` env (default `log`).
+- New: `NotificationChannel.LOG` enum value (migration `029aed573f60`, Postgres `ADD VALUE`).
+- Deps added: python-jose, python-multipart, jinja2, google-api-python-client/auth/oauthlib, gspread.
+- **Live-verified** (TestClient, real DB): no-auth→401, bad login→401, login→200, `/auth/me`, queue lists
+  3 drafts, submit→pending, approve→approved, re-approve→409, one-click reject→200, bad token→401,
+  dashboard→200; `approvals`/`audit_logs`/`notifications` rows written. 14 new tests; full suite 53 green.
 
 Next: `08-publisher.md`

@@ -38,7 +38,12 @@ class Settings(BaseSettings):
     # --- Security ------------------------------------------------------------
     # Used to sign JWTs (Phase 7). Override with a strong random value in prod.
     secret_key: str = Field(default="change-me-in-production")
+    jwt_algorithm: str = Field(default="HS256")
     access_token_expire_minutes: int = Field(default=60 * 12)
+    # Public base URL used to build one-click approve/reject links in notifications.
+    public_base_url: str = Field(default="http://localhost:8000")
+    # TTL for the signed action token embedded in those one-click links.
+    action_token_expire_minutes: int = Field(default=60 * 24 * 3)
 
     # --- Database ------------------------------------------------------------
     database_url: str = Field(
@@ -83,6 +88,18 @@ class Settings(BaseSettings):
     factcheck_max_claims: int = Field(default=6)
     factcheck_min_claim_chars: int = Field(default=40)
     factcheck_rag_k: int = Field(default=3)  # candidate sources fetched per claim
+
+    # --- Notifications (Phase 7) ---------------------------------------------
+    # Comma-separated channels to fan a PENDING draft out to. Unknown/unconfigured
+    # channels fall back to the log notifier so the app always works offline.
+    notification_channels: str = Field(default="log")  # log,email,teams,sheets
+    notify_to_email: str = Field(default="")  # approver inbox for email channel
+    gmail_credentials_file: str = Field(default="")  # OAuth client secrets json
+    gmail_token_file: str = Field(default=".secrets/gmail_token.json")
+    teams_webhook_url: str = Field(default="")  # incoming-webhook connector URL
+    sheets_credentials_file: str = Field(default="")  # service-account json
+    sheets_spreadsheet_id: str = Field(default="")
+    sheets_worksheet: str = Field(default="Approvals")
 
     # --- Collector sources (Phase 2) -----------------------------------------
     github_token: str = Field(default="")

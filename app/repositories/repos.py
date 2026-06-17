@@ -12,8 +12,11 @@ from sqlalchemy.orm import joinedload
 
 from app.models.enums import PostStatus
 from app.models.models import (
+    Approval,
     Article,
+    AuditLog,
     GeneratedPost,
+    Notification,
     PublishingHistory,
     SeenHash,
     StyleProfile,
@@ -134,6 +137,25 @@ class PostRepository(BaseRepository[GeneratedPost]):
     def get_pending(self, *, limit: int = 100) -> list[GeneratedPost]:
         return self.by_status(PostStatus.PENDING, limit=limit)
 
+    # Statuses that still need a human decision (the approval queue).
+    REVIEW_STATUSES = (
+        PostStatus.DRAFT,
+        PostStatus.NEEDS_REVIEW,
+        PostStatus.PENDING,
+        PostStatus.EDITED,
+    )
+
+    def review_queue(self, *, limit: int = 100) -> list[GeneratedPost]:
+        """Drafts awaiting approval, with topic eager-loaded for the dashboard."""
+        stmt = (
+            select(GeneratedPost)
+            .where(GeneratedPost.status.in_(self.REVIEW_STATUSES))
+            .options(joinedload(GeneratedPost.topic))
+            .order_by(GeneratedPost.created_at.desc())
+            .limit(limit)
+        )
+        return list(self.db.execute(stmt).scalars().all())
+
 
 class SeenHashRepository(BaseRepository[SeenHash]):
     """Dedup-memory store. Survives article pruning so old news is never
@@ -158,6 +180,34 @@ class SeenHashRepository(BaseRepository[SeenHash]):
         stmt = delete(SeenHash).where(SeenHash.last_seen < _utc_cutoff(days))
         result = self.db.execute(stmt)
         return result.rowcount or 0
+
+
+class ApprovalRepository(BaseRepository[Approval]):
+    model = Approval
+
+    def for_post(self, post_id: int) -> list[Approval]:
+        stmt = (
+            select(Approval)
+            .where(Approval.post_id == post_id)
+            .order_by(Approval.decided_at.desc())
+        )
+        return list(self.db.execute(stmt).scalars().all())
+
+
+class NotificationRepository(BaseRepository[Notification]):
+    model = Notification
+
+
+class AuditLogRepository(BaseRepository[AuditLog]):
+    model = AuditLog
+
+    def record(
+        self, *, actor: str | None, action: str, entity: str | None, payload: dict | None = None
+    ) -> AuditLog:
+        row = AuditLog(actor=actor, action=action, entity=entity, payload=payload)
+        self.db.add(row)
+        self.db.flush()
+        return row
 
 
 class PublishingRepository(BaseRepository[PublishingHistory]):

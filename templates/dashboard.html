@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Approval Dashboard</title>
+  <style>
+    :root { --bg:#0f172a; --card:#1e293b; --ink:#e2e8f0; --muted:#94a3b8; --line:#334155; }
+    * { box-sizing: border-box; }
+    body { margin:0; font:15px/1.5 system-ui,sans-serif; background:var(--bg); color:var(--ink); }
+    header { padding:16px 24px; border-bottom:1px solid var(--line); display:flex; gap:12px; align-items:center; }
+    h1 { font-size:18px; margin:0; flex:1; }
+    main { max-width:880px; margin:0 auto; padding:24px; }
+    input, button { font:inherit; }
+    input { padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:#0b1220; color:var(--ink); }
+    button { padding:8px 14px; border-radius:8px; border:0; cursor:pointer; background:#2563eb; color:#fff; }
+    button.ghost { background:#334155; }
+    button.warn { background:#b45309; }
+    button.bad { background:#b91c1c; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:16px; }
+    .meta { color:var(--muted); font-size:13px; margin-bottom:8px; display:flex; gap:14px; flex-wrap:wrap; }
+    .body { white-space:pre-wrap; background:#0b1220; padding:12px; border-radius:10px; margin:10px 0; }
+    .tags { color:#7dd3fc; font-size:13px; }
+    .flags { color:#fca5a5; font-size:13px; margin-top:8px; }
+    .actions { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+    .pill { padding:2px 8px; border-radius:999px; background:#334155; font-size:12px; }
+    #login { display:flex; gap:8px; }
+    .hidden { display:none; }
+    .empty { color:var(--muted); text-align:center; padding:40px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>LinkedIn Approval Dashboard</h1>
+    <form id="login">
+      <input id="email" type="email" placeholder="email" value="admin@example.com" autocomplete="username">
+      <input id="password" type="password" placeholder="password" autocomplete="current-password">
+      <button type="submit">Log in</button>
+    </form>
+    <button id="refresh" class="ghost hidden">Refresh</button>
+  </header>
+  <main>
+    <div id="status" class="empty">Log in to load pending drafts.</div>
+    <div id="queue"></div>
+  </main>
+
+  <script>
+    let token = null;
+    const $ = (id) => document.getElementById(id);
+
+    async function api(path, opts = {}) {
+      const res = await fetch(path, {
+        ...opts,
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}), ...(opts.headers || {}) },
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.status);
+      return res.status === 200 ? res.json() : null;
+    }
+
+    $("login").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const form = new URLSearchParams();
+      form.set("username", $("email").value);
+      form.set("password", $("password").value);
+      try {
+        const data = await fetch("/auth/login", { method: "POST", body: form }).then(r => {
+          if (!r.ok) throw new Error("login failed"); return r.json();
+        });
+        token = data.access_token;
+        $("login").classList.add("hidden");
+        $("refresh").classList.remove("hidden");
+        load();
+      } catch (err) { $("status").textContent = "Login failed."; }
+    });
+
+    $("refresh").addEventListener("click", load);
+
+    async function act(id, action, payload) {
+      try { await api(`/approvals/${id}/${action}`, { method: "POST", body: JSON.stringify(payload || {}) }); load(); }
+      catch (err) { alert(action + " failed: " + err.message); }
+    }
+
+    function card(p) {
+      const flags = p.review_notes ? `<div class="flags">⚠ ${JSON.stringify(p.review_notes)}</div>` : "";
+      const tags = (p.hashtags || []).map(t => "#" + t).join(" ");
+      const el = document.createElement("div");
+      el.className = "card";
+      el.innerHTML = `
+        <div class="meta">
+          <span class="pill">#${p.id}</span>
+          <span class="pill">${p.status}</span>
+          <span>${p.topic || "—"}</span>
+          <span>trend ${p.trend_score == null ? "—" : p.trend_score.toFixed(2)}</span>
+        </div>
+        <strong>${p.headline || ""}</strong>
+        <div class="body">${(p.hook ? p.hook + "\n\n" : "") + p.body + (p.cta ? "\n\n" + p.cta : "")}</div>
+        <div class="tags">${tags}</div>
+        ${flags}
+        <div class="actions">
+          <button>Approve</button>
+          <button class="ghost">Submit</button>
+          <button class="warn">Regenerate</button>
+          <button class="bad">Reject</button>
+        </div>`;
+      const [ap, sub, reg, rej] = el.querySelectorAll("button");
+      ap.onclick = () => act(p.id, "approve");
+      sub.onclick = () => act(p.id, "submit");
+      reg.onclick = () => act(p.id, "regenerate");
+      rej.onclick = () => { const c = prompt("Reason (optional):") || null; act(p.id, "reject", { comment: c }); };
+      return el;
+    }
+
+    async function load() {
+      try {
+        const items = await api("/approvals");
+        const q = $("queue"); q.innerHTML = "";
+        $("status").textContent = items.length ? "" : "No drafts awaiting review.";
+        $("status").className = items.length ? "" : "empty";
+        items.forEach(p => q.appendChild(card(p)));
+      } catch (err) { $("status").textContent = "Failed to load: " + err.message; }
+    }
+  </script>
+</body>
+</html>
