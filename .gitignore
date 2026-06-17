@@ -23,3 +23,6 @@ postgres_data/
 .DS_Store
 .idea/
 .vscode/
+
+# local vector store
+.chroma/

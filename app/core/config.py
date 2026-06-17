@@ -50,7 +50,24 @@ class Settings(BaseSettings):
     # --- External services ---------------------------------------------------
     ollama_host: str = Field(default="http://localhost:11434")
     ollama_model: str = Field(default="llama3.1")
+    ollama_timeout_seconds: float = Field(default=120.0)
+    ollama_temperature: float = Field(default=0.7)
     chroma_host: str = Field(default="http://localhost:8001")
+    # Local embedded Chroma store (no separate server needed in dev).
+    chroma_path: str = Field(default=".chroma")
+    chroma_collection: str = Field(default="articles")
+
+    # --- Generator (Phase 5) -------------------------------------------------
+    rag_top_k: int = Field(default=5)  # grounding articles pulled per topic
+    # Non-negotiable rules injected into every generation prompt.
+    brand_rules: str = Field(
+        default=(
+            "Write original analysis, never copy article sentences. "
+            "Be factual and grounded only in the provided facts — invent nothing. "
+            "Professional, insightful, concise thought-leadership voice. "
+            "No hype, no clickbait, no false claims, no hashtags stuffing."
+        )
+    )
 
     # --- Collector sources (Phase 2) -----------------------------------------
     github_token: str = Field(default="")

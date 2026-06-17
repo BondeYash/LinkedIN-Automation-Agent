@@ -70,11 +70,21 @@ app/api/generate.py
 4. Re-run with a different topic → different, relevant post.
 
 ## Done checklist
-- [ ] Ollama installed, model pulled, client works
-- [ ] Prompt template in a file (editable)
-- [ ] RAG pulls relevant articles from ChromaDB
-- [ ] Generator returns valid structured JSON
-- [ ] Draft saved with status DRAFT
-- [ ] Committed to git
+- [ ] Ollama installed, model pulled, client works  ← needs the Ollama app + a model pull (pending)
+- [x] Prompt template in a file (editable) — `app/ai/prompts/generation.txt`
+- [x] RAG pulls relevant articles from ChromaDB — `app/ai/rag.py` (embedded PersistentClient, reuses our embedder)
+- [x] Generator returns valid structured JSON — robust `parse_post_json` (fences/prose tolerant, key-validated)
+- [x] Draft saved with status DRAFT
+- [x] Committed to git
+
+## Notes (implementation)
+- `app/ai/ollama_client.py` — async wrapper behind an `LLMClient` Protocol (fake drives tests),
+  JSON mode via Ollama `format="json"`, transient retry + timeout from settings.
+- `app/ai/rag.py` — embedded Chroma (no separate server); `index()` upserts article vectors,
+  `query(topic)` returns top-K `GroundingFact`. Generator falls back to `topic.articles` if empty.
+- `app/services/generator_service.py` — topic + trend + style + RAG facts → prompt → LLM → parse → DRAFT.
+- Closed the Phase 4 stub: `OllamaStyleLabeler` added (short labels only, never copied text).
+- 6 new tests (parser + full flow with fakes); full suite 27 green; app builds with router mounted.
+- **Live generation pending Ollama**: install the app + `ollama pull <model>`, then `POST /generate`.
 
 Next: `06-quality-gates.md`
