@@ -52,6 +52,20 @@ class Settings(BaseSettings):
     ollama_model: str = Field(default="llama3.1")
     chroma_host: str = Field(default="http://localhost:8001")
 
+    # --- Collector sources (Phase 2) -----------------------------------------
+    github_token: str = Field(default="")
+    devto_api_key: str = Field(default="")
+    reddit_client_id: str = Field(default="")
+    reddit_client_secret: str = Field(default="")
+    reddit_user_agent: str = Field(default="linkedin-agent/0.1 by u/unknown")
+    reddit_subreddits: str = Field(default="programming,technology,MachineLearning")
+
+    # Collector tuning
+    collector_timeout_seconds: float = Field(default=15.0)
+    collector_max_concurrency: int = Field(default=5)
+    collector_per_source_limit: int = Field(default=25)
+    dedup_title_threshold: int = Field(default=90)  # rapidfuzz % similarity
+
     @property
     def is_production(self) -> bool:
         return self.environment.lower() == "production"

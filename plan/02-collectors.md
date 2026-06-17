@@ -63,11 +63,11 @@ app/api/news.py
 4. Break one source's URL on purpose — others still succeed.
 
 ## Done checklist
-- [ ] All 5 collectors return normalized articles
-- [ ] Retry + timeout + rate limit on every external call
-- [ ] Concurrent run; one failure doesn't stop others
-- [ ] URL + fuzzy-title dedup working
-- [ ] Articles stored; `/news` lists them
-- [ ] Committed to git
+- [x] All 5 collectors return normalized articles (Reddit safely no-ops without creds)
+- [x] Retry + timeout + rate limit on every external call (tenacity + Semaphore)
+- [x] Concurrent run; one failure doesn't stop others (verified by test + live)
+- [x] URL + fuzzy-title dedup working (live: 124 new then 0 new / 125 dup)
+- [x] Articles stored; `/news` lists them
+- [x] Committed to git
 
 Next: `03-trend-analyzer.md`

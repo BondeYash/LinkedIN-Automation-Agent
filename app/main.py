@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.api import news
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 
@@ -45,6 +46,7 @@ def create_app() -> FastAPI:
         """Liveness probe. Extended with db/scheduler/ollama checks in Phase 11."""
         return {"status": "ok"}
 
+    app.include_router(news.router)
     return app
 
 

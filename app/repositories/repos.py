@@ -38,6 +38,15 @@ class ArticleRepository(BaseRepository[Article]):
     def exists_url_hash(self, url_hash: str) -> bool:
         return self.get_by_url_hash(url_hash) is not None
 
+    def recent_titles(self, *, limit: int = 500) -> list[str]:
+        """Recent article titles — used for fuzzy near-duplicate detection."""
+        stmt = (
+            select(Article.title)
+            .order_by(Article.collected_at.desc())
+            .limit(limit)
+        )
+        return list(self.db.execute(stmt).scalars().all())
+
 
 class TopicRepository(BaseRepository[Topic]):
     model = Topic
