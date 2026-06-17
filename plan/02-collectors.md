@@ -70,4 +70,25 @@ app/api/news.py
 - [x] Articles stored; `/news` lists them
 - [x] Committed to git
 
+---
+
+## Phase 2.5 — Data lifecycle (added)
+
+Raw articles are an **ephemeral working set**, not long-term storage. Without this
+a daily cron grows the DB unbounded (content text is the main cost). Strategy:
+
+- **Slim rows** — `RetentionService` nulls the heavy `content` column once an
+  article is older than `CONTENT_TTL_DAYS` (3); by then it's been scored/embedded.
+- **TTL prune** — delete article rows older than `ARTICLE_TTL_DAYS` (21).
+- **Seen-hash memory** — `seen_hashes` table (url_hash + last_seen, ~70 B/row,
+  `SEEN_HASH_TTL_DAYS`=60) is the durable dedup key. It outlives pruned articles,
+  so old news is never re-ingested even after its `articles` row is gone.
+
+Daily cron order (wired in Phase 11): **collect → analyze → generate → prune**.
+Manual ops endpoint: `POST /news/prune`. Net effect: DB stays small and flat.
+
+- [x] `seen_hashes` durable dedup memory; collector dedups against it
+- [x] `RetentionService` drops content + prunes articles + prunes hashes
+- [x] verified: content 124→0 on force-drop, rows/hashes preserved; collect re-dedups to 0 new
+
 Next: `03-trend-analyzer.md`

@@ -23,7 +23,7 @@ from app.collectors.hackernews_collector import HackerNewsCollector
 from app.collectors.reddit_collector import RedditCollector
 from app.collectors.rss_collector import RSSCollector
 from app.models.models import Article
-from app.repositories.repos import ArticleRepository
+from app.repositories.repos import ArticleRepository, SeenHashRepository
 from app.schemas.article import RawArticle
 from app.utils.text import url_hash
 from seed.sources import DEFAULT_SOURCES
@@ -53,10 +53,12 @@ class CollectorService:
         article_repo: ArticleRepository,
         collectors: list[BaseCollector],
         *,
+        seen_repo: SeenHashRepository | None = None,
         max_concurrency: int = 5,
         title_threshold: int = 90,
     ) -> None:
         self.article_repo = article_repo
+        self.seen_repo = seen_repo
         self.collectors = collectors
         self.semaphore = asyncio.Semaphore(max_concurrency)
         self.title_threshold = title_threshold
@@ -91,8 +93,15 @@ class CollectorService:
         for item in raw_items:
             h = url_hash(item.url)
 
-            # Level 1 — exact URL hash (batch + DB).
-            if h in seen_hashes or self.article_repo.exists_url_hash(h):
+            # Level 1 — exact URL hash. Check the durable seen-hash memory (which
+            # outlives pruned articles) so old news is never re-ingested; fall
+            # back to the articles table if no seen-repo is wired.
+            already_seen = h in seen_hashes or (
+                self.seen_repo.exists(h)
+                if self.seen_repo is not None
+                else self.article_repo.exists_url_hash(h)
+            )
+            if already_seen:
                 result.duplicates += 1
                 continue
 
@@ -111,6 +120,8 @@ class CollectorService:
                     published_at=item.published_at,
                 )
             )
+            if self.seen_repo is not None:
+                self.seen_repo.record(h, item.source)
             seen_hashes.add(h)
             kept_titles.append(item.title)
             result.new += 1

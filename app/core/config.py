@@ -66,6 +66,11 @@ class Settings(BaseSettings):
     collector_per_source_limit: int = Field(default=25)
     dedup_title_threshold: int = Field(default=90)  # rapidfuzz % similarity
 
+    # Retention / lifecycle (raw articles are an ephemeral working set)
+    article_ttl_days: int = Field(default=21)  # delete article rows older than this
+    content_ttl_days: int = Field(default=3)  # null heavy `content` text after this
+    seen_hash_ttl_days: int = Field(default=60)  # dedup memory horizon
+
     @property
     def is_production(self) -> bool:
         return self.environment.lower() == "production"

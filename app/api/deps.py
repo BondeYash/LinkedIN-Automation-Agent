@@ -19,6 +19,7 @@ from app.repositories.repos import (
     ArticleRepository,
     PostRepository,
     PublishingRepository,
+    SeenHashRepository,
     StyleProfileRepository,
     TopicRepository,
     TrendRepository,
@@ -32,6 +33,10 @@ def get_user_repo(db: Session = Depends(get_db)) -> UserRepository:
 
 def get_article_repo(db: Session = Depends(get_db)) -> ArticleRepository:
     return ArticleRepository(db)
+
+
+def get_seen_repo(db: Session = Depends(get_db)) -> SeenHashRepository:
+    return SeenHashRepository(db)
 
 
 def get_topic_repo(db: Session = Depends(get_db)) -> TopicRepository:

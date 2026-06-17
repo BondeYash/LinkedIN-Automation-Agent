@@ -75,7 +75,11 @@ class Article(Base):
     title: Mapped[str] = mapped_column(String(512), nullable=False)
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    collected_at: Mapped[datetime] = _created()
+    collected_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+    # Set by the trend analyzer (Phase 3); drives content-dropping + prune order.
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     topics: Mapped[list["Topic"]] = relationship(
         secondary=article_topics, back_populates="articles"
@@ -274,6 +278,26 @@ class ImprovementTip(Base):
     created_at: Mapped[datetime] = _created()
 
     account_post: Mapped["AccountPost"] = relationship(back_populates="tips")
+
+
+class SeenHash(Base):
+    """Lightweight dedup memory that outlives pruned articles.
+
+    Holds only a url hash + timestamps (~70 bytes/row), kept ~60 days. Lets the
+    collector skip a story it already processed even after the raw `articles`
+    row has been pruned, so old news is never re-ingested.
+    """
+
+    __tablename__ = "seen_hashes"
+
+    url_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    source: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    first_seen: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    last_seen: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
 
 
 class AuditLog(Base):

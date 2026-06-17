@@ -5,19 +5,26 @@ Each adds the domain queries its callers need on top of `BaseRepository` CRUD.
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import delete, func, select, update
 
 from app.models.enums import PostStatus
 from app.models.models import (
     Article,
     GeneratedPost,
     PublishingHistory,
+    SeenHash,
     StyleProfile,
     Topic,
     Trend,
     User,
 )
 from app.repositories.base import BaseRepository
+
+
+def _utc_cutoff(days: int) -> datetime:
+    return datetime.now(timezone.utc) - timedelta(days=days)
 
 
 class UserRepository(BaseRepository[User]):
@@ -46,6 +53,26 @@ class ArticleRepository(BaseRepository[Article]):
             .limit(limit)
         )
         return list(self.db.execute(stmt).scalars().all())
+
+    def count(self) -> int:
+        return int(self.db.execute(select(func.count(Article.id))).scalar_one())
+
+    def prune_older_than(self, days: int) -> int:
+        """Delete article rows older than `days`. Returns rows removed."""
+        stmt = delete(Article).where(Article.collected_at < _utc_cutoff(days))
+        result = self.db.execute(stmt)
+        return result.rowcount or 0
+
+    def drop_content_older_than(self, days: int) -> int:
+        """Null the heavy `content` text on articles older than `days` (keeps the
+        cheap metadata row). Returns rows updated."""
+        stmt = (
+            update(Article)
+            .where(Article.collected_at < _utc_cutoff(days), Article.content.is_not(None))
+            .values(content=None)
+        )
+        result = self.db.execute(stmt)
+        return result.rowcount or 0
 
 
 class TopicRepository(BaseRepository[Topic]):
@@ -82,6 +109,31 @@ class PostRepository(BaseRepository[GeneratedPost]):
 
     def get_pending(self, *, limit: int = 100) -> list[GeneratedPost]:
         return self.by_status(PostStatus.PENDING, limit=limit)
+
+
+class SeenHashRepository(BaseRepository[SeenHash]):
+    """Dedup-memory store. Survives article pruning so old news is never
+    re-ingested."""
+
+    model = SeenHash
+
+    def exists(self, url_hash: str) -> bool:
+        return self.db.get(SeenHash, url_hash) is not None
+
+    def record(self, url_hash: str, source: str | None = None) -> None:
+        """Insert the hash, or bump `last_seen` if already present."""
+        existing = self.db.get(SeenHash, url_hash)
+        now = datetime.now(timezone.utc)
+        if existing is None:
+            self.db.add(SeenHash(url_hash=url_hash, source=source, last_seen=now))
+        else:
+            existing.last_seen = now
+
+    def prune_older_than(self, days: int) -> int:
+        """Drop hashes not seen within `days`. Returns rows removed."""
+        stmt = delete(SeenHash).where(SeenHash.last_seen < _utc_cutoff(days))
+        result = self.db.execute(stmt)
+        return result.rowcount or 0
 
 
 class PublishingRepository(BaseRepository[PublishingHistory]):
