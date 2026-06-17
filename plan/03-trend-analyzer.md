@@ -50,11 +50,20 @@ app/api/trends.py
 4. Check that articles about the same event landed in the same topic cluster.
 
 ## Done checklist
-- [ ] Embeddings generated and reused (model loaded once)
-- [ ] Articles cluster into topics (DBSCAN)
-- [ ] Each signal normalized; trend_score computed
-- [ ] Topics + trends stored
-- [ ] `/trends` returns ranked list
-- [ ] Committed to git
+- [x] Embeddings generated and reused (model loaded once; lazy singleton, threadpool)
+- [x] Articles cluster into topics (DBSCAN cosine, min_samples=1 → no noise)
+- [x] Each signal normalized; trend_score computed (pop·0.4 + rec·0.3 + rel·0.3)
+- [x] Topics + trends stored; `processed_at` stamped (single-assignment, idempotent)
+- [x] `/trends` returns ranked list
+- [x] Committed to git
+
+## Notes (implementation)
+- Added `articles.raw_signals` JSON column (migration `3be64b334355`) so HN score /
+  GitHub stars survive to scoring — collector now persists it.
+- Analyzer only clusters **unprocessed** articles in the window, so each article is
+  assigned once and re-runs are no-ops (verified live: 124→114 topics, re-run 0/0).
+- Scoring math lives in `app/analyzers/scoring.py` (pure, unit-tested with fixed numbers).
+- popularity is min-max normalized **across the run's topics**; recency uses the
+  freshest member; relevance = max cosine(topic_vec, theme_vec) from `TREND_THEMES`.
 
 Next: `04-style-intelligence.md`

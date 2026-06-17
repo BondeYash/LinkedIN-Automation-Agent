@@ -8,6 +8,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, func, select, update
+from sqlalchemy.orm import joinedload
 
 from app.models.enums import PostStatus
 from app.models.models import (
@@ -57,6 +58,18 @@ class ArticleRepository(BaseRepository[Article]):
     def count(self) -> int:
         return int(self.db.execute(select(func.count(Article.id))).scalar_one())
 
+    def unprocessed(self, *, window_hours: int = 72, limit: int = 500) -> list[Article]:
+        """Articles collected within `window_hours` that the trend analyzer has
+        not clustered yet (`processed_at IS NULL`), newest first."""
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=window_hours)
+        stmt = (
+            select(Article)
+            .where(Article.processed_at.is_(None), Article.collected_at >= cutoff)
+            .order_by(Article.collected_at.desc())
+            .limit(limit)
+        )
+        return list(self.db.execute(stmt).scalars().all())
+
     def prune_older_than(self, days: int) -> int:
         """Delete article rows older than `days`. Returns rows removed."""
         stmt = delete(Article).where(Article.collected_at < _utc_cutoff(days))
@@ -84,6 +97,17 @@ class TrendRepository(BaseRepository[Trend]):
 
     def top_recent(self, *, limit: int = 10) -> list[Trend]:
         stmt = select(Trend).order_by(Trend.run_date.desc(), Trend.score.desc()).limit(limit)
+        return list(self.db.execute(stmt).scalars().all())
+
+    def ranked(self, *, limit: int = 20) -> list[Trend]:
+        """Latest trends, highest score first, with the topic eager-loaded for
+        the API response (avoids lazy-load after the session closes)."""
+        stmt = (
+            select(Trend)
+            .options(joinedload(Trend.topic))
+            .order_by(Trend.run_date.desc(), Trend.score.desc())
+            .limit(limit)
+        )
         return list(self.db.execute(stmt).scalars().all())
 
 

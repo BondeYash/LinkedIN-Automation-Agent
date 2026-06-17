@@ -118,6 +118,7 @@ class CollectorService:
                     title=item.title,
                     content=item.content,
                     published_at=item.published_at,
+                    raw_signals=item.raw_signals or {},
                 )
             )
             if self.seen_repo is not None:

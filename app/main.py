@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import news
+from app.api import news, trends
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 
@@ -47,6 +47,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(news.router)
+    app.include_router(trends.router)
     return app
 
 

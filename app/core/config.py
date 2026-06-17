@@ -71,6 +71,28 @@ class Settings(BaseSettings):
     content_ttl_days: int = Field(default=3)  # null heavy `content` text after this
     seen_hash_ttl_days: int = Field(default=60)  # dedup memory horizon
 
+    # --- Trend analyzer (Phase 3) --------------------------------------------
+    embedding_model: str = Field(default="all-MiniLM-L6-v2")  # sentence-transformers
+    # DBSCAN: cosine distance. eps = max distance to be "same story"; min_samples=1
+    # so a unique article is still its own topic (no points dropped as noise).
+    cluster_eps: float = Field(default=0.45)
+    cluster_min_samples: int = Field(default=1)
+    # How far back to pull articles for an analysis run, and a hard cap per run.
+    analyze_window_hours: int = Field(default=72)
+    analyze_max_articles: int = Field(default=500)
+    # Recency decay: score halves every `recency_half_life_hours`.
+    recency_half_life_hours: float = Field(default=24.0)
+    # Trend score weights (popularity + recency + relevance). Tuned later (Phase 9/10).
+    weight_popularity: float = Field(default=0.4)
+    weight_recency: float = Field(default=0.3)
+    weight_relevance: float = Field(default=0.3)
+    # Reference themes the topic vector is scored against for relevance (0–1 cosine).
+    trend_themes: str = Field(
+        default="artificial intelligence and machine learning"
+        ";software engineering and developer tools"
+        ";startups, technology business and product strategy"
+    )
+
     @property
     def is_production(self) -> bool:
         return self.environment.lower() == "production"
