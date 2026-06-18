@@ -18,7 +18,11 @@ COPY . .
 EXPOSE 8000
 
 # Run as a non-root user for safety.
-RUN useradd --create-home appuser && chown -R appuser:appuser /app
+RUN useradd --create-home appuser \
+    && chmod +x /app/docker-entrypoint.sh \
+    && chown -R appuser:appuser /app
 USER appuser
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Entrypoint runs migrations then launches a SINGLE uvicorn process (the
+# in-process APScheduler cron must not be multiplied across workers).
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

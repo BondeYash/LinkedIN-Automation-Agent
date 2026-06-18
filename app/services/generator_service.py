@@ -16,7 +16,7 @@ from pathlib import Path
 
 from app.ai.dedup import PostDedup
 from app.ai.factcheck import FactChecker
-from app.ai.ollama_client import LLMClient, OllamaClient
+from app.ai.ollama_client import LLMClient, get_llm_client
 from app.ai.rag import ChromaRAG, GroundingFact
 from app.core.config import Settings, get_settings
 from app.models.enums import PostStatus
@@ -91,7 +91,7 @@ class GeneratorService:
         self.style_repo = style_repo
         self.post_repo = post_repo
         self.settings = settings or get_settings()
-        self.llm = llm or OllamaClient(self.settings)
+        self.llm = llm or get_llm_client(self.settings)
         self.rag = rag or ChromaRAG(settings=self.settings)
         # Quality gates (Phase 6). Default None → skipped, so the generator works
         # standalone and unit tests drive it without a vector store. The API wires

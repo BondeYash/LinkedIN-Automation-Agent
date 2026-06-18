@@ -19,6 +19,7 @@ from app.notifications.email_notifier import EmailNotifier
 from app.notifications.log_notifier import LogNotifier
 from app.notifications.sheets_notifier import SheetsNotifier
 from app.notifications.teams_notifier import TeamsNotifier
+from app.notifications.whatsapp_notifier import WhatsAppNotifier
 from app.repositories.repos import NotificationRepository
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ _BUILDERS = {
     "email": EmailNotifier,
     "teams": TeamsNotifier,
     "sheets": SheetsNotifier,
+    "whatsapp": WhatsAppNotifier,
 }
 
 

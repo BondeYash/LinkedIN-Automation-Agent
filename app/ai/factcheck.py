@@ -16,7 +16,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from app.ai.ollama_client import LLMClient, OllamaClient
+from app.ai.ollama_client import LLMClient, get_llm_client
 from app.ai.rag import ChromaRAG, GroundingFact
 from app.core.config import Settings, get_settings
 
@@ -65,7 +65,7 @@ class FactChecker:
     ) -> None:
         self.settings = settings or get_settings()
         self.rag = rag or ChromaRAG(settings=self.settings)
-        self.llm = llm or OllamaClient(self.settings)
+        self.llm = llm or get_llm_client(self.settings)
 
     async def check(self, body: str) -> FactVerdict:
         claims = split_claims(

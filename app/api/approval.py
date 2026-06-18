@@ -12,10 +12,12 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse
 
-from app.api.deps import get_approval_service, require_role
+from app.api.deps import get_approval_service, get_linkedin_publisher, require_role
+from app.core.config import get_settings
 from app.core.security import TokenError, decode_action_token
-from app.models.enums import UserRole
+from app.models.enums import PostStatus, UserRole
 from app.models.models import User
+from app.publishers.linkedin_publisher import LinkedInPublisher
 from app.schemas.approval import ApprovalCard, DecisionRequest, EditRequest
 from app.services.approval_service import (
     ApprovalService,
@@ -106,11 +108,17 @@ _ACTION_FN = {"approve": "approve", "reject": "reject", "regenerate": "regenerat
 
 
 @router.get("/action", response_class=HTMLResponse)
-def one_click_action(
+async def one_click_action(
     token: str = Query(...),
     service: ApprovalService = Depends(get_approval_service),
+    publisher: LinkedInPublisher = Depends(get_linkedin_publisher),
 ) -> HTMLResponse:
-    """Token-authenticated one-click action from a notification link (no login)."""
+    """Token-authenticated one-click action from a notification link (no login).
+
+    When `auto_publish_on_approve` is set, an approve click also publishes the
+    post to LinkedIn straight away — so the WhatsApp "Approve" tap is the only
+    step needed to go live.
+    """
     try:
         claims = decode_action_token(token)
     except TokenError as exc:
@@ -119,7 +127,22 @@ def one_click_action(
     if action not in _ACTION_FN:
         raise HTTPException(status_code=400, detail="unknown action")
     post = _run(getattr(service, _ACTION_FN[action]), int(claims["post_id"]), user=None)
+
+    extra = ""
+    settings = get_settings()
+    if action == "approve" and settings.auto_publish_on_approve and post.status == PostStatus.APPROVED:
+        result = await publisher.publish(post)
+        if result.ok:
+            extra = (
+                f"<p>✅ Published to LinkedIn — "
+                f"<code>{result.linkedin_post_id}</code></p>"
+            )
+        else:
+            extra = (
+                f"<p>⚠ Approved, but publishing failed: {result.error}. "
+                f"It stays APPROVED for a retry.</p>"
+            )
     return HTMLResponse(
         f"<h2>Post #{post.id} — {post.status.value}</h2>"
-        f"<p>Action '{action}' recorded. You can close this tab.</p>"
+        f"<p>Action '{action}' recorded. You can close this tab.</p>{extra}"
     )

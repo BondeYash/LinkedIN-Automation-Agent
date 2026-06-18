@@ -45,6 +45,7 @@ class NotificationChannel(str, enum.Enum):
     EMAIL = "email"
     TEAMS = "teams"
     SHEETS = "sheets"
+    WHATSAPP = "whatsapp"  # WAHA WhatsApp HTTP API (Phase 11)
     LOG = "log"  # offline fallback channel (Phase 7)
 
 

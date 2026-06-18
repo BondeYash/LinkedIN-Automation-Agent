@@ -19,6 +19,7 @@ from app.api import (
     auth,
     generate,
     news,
+    ops,
     publishing,
     style,
     trends,
@@ -31,13 +32,30 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup/shutdown hook. Scheduler registration (Phase 11) plugs in here."""
+    """Startup/shutdown hook. Starts the APScheduler jobs (Phase 11) when
+    `scheduler_enabled` is set, and tears them down cleanly on shutdown."""
 
     setup_logging()
     settings = get_settings()
     logger.info("Starting %s (env=%s)", settings.app_name, settings.environment)
-    yield
-    logger.info("Shutting down %s", settings.app_name)
+
+    scheduler = None
+    if settings.scheduler_enabled:
+        from app.scheduler.scheduler import build_scheduler
+
+        scheduler = build_scheduler(settings)
+        scheduler.start()
+        for job in scheduler.get_jobs():
+            logger.info("Scheduled '%s' — next run %s", job.id, job.next_run_time)
+    else:
+        logger.info("Scheduler disabled (set SCHEDULER_ENABLED=true to enable)")
+
+    try:
+        yield
+    finally:
+        if scheduler is not None:
+            scheduler.shutdown(wait=False)
+        logger.info("Shutting down %s", settings.app_name)
 
 
 def create_app() -> FastAPI:
@@ -64,6 +82,7 @@ def create_app() -> FastAPI:
     app.include_router(approval.router)
     app.include_router(publishing.router)
     app.include_router(analytics.router)
+    app.include_router(ops.router)
     app.include_router(admin.router)
     return app
 

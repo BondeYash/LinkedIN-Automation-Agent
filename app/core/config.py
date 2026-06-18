@@ -57,7 +57,24 @@ class Settings(BaseSettings):
     ollama_model: str = Field(default="llama3.1")
     ollama_timeout_seconds: float = Field(default=600.0)  # CPU cold-load can be slow
     ollama_temperature: float = Field(default=0.7)
-    ollama_num_predict: int = Field(default=700)  # cap output tokens to bound latency
+    ollama_num_predict: int = Field(default=400)  # cap output tokens to bound latency
+    # CPU inference tuning. keep_alive keeps the model resident between calls so we
+    # skip the multi-second cold reload; num_thread pins all cores. 0 = let Ollama decide.
+    ollama_keep_alive: str = Field(default="30m")
+    ollama_num_thread: int = Field(default=0)
+
+    # LLM backend selector. "ollama" = 100% local; "groq" = free hosted API (no
+    # credit card, fast) — removes the ~4GB local-model RAM anchor so the agent
+    # runs on a weak always-on box. All generation goes through the LLMClient
+    # Protocol, so only this switch changes which client the services build.
+    llm_backend: str = Field(default="ollama")  # ollama | groq
+    groq_api_key: str = Field(default="")
+    groq_base_url: str = Field(default="https://api.groq.com/openai/v1")
+    groq_model: str = Field(default="llama-3.1-8b-instant")
+    groq_temperature: float = Field(default=0.7)
+    groq_num_predict: int = Field(default=400)  # max_tokens cap
+    groq_timeout_seconds: float = Field(default=60.0)
+
     chroma_host: str = Field(default="http://localhost:8001")
     # Local embedded Chroma store (no separate server needed in dev).
     chroma_path: str = Field(default=".chroma")
@@ -82,7 +99,9 @@ class Settings(BaseSettings):
     # Gate 1 — duplicate detection. Cosine similarity (0–1) to the nearest past
     # post above this is "too similar"; regenerate up to N times before flagging.
     dedup_similarity_threshold: float = Field(default=0.85)
-    dedup_max_regen_tries: int = Field(default=2)
+    # Each retry is a full LLM regeneration (~40-90s on CPU). Keep low: 1 retry
+    # bounds worst-case /generate latency; persistent dups just get flagged.
+    dedup_max_regen_tries: int = Field(default=1)
     # Gate 2 — fact check. Cap claims verified per post (bounds LLM latency on CPU);
     # claims shorter than this are treated as fluff and skipped.
     factcheck_max_claims: int = Field(default=6)
@@ -169,6 +188,35 @@ class Settings(BaseSettings):
         ";software engineering and developer tools"
         ";startups, technology business and product strategy"
     )
+
+    # --- WhatsApp notifications via WAHA (Phase 11) --------------------------
+    # WAHA = WhatsApp HTTP API (https://waha.devlike.pro). We send the approval
+    # request as a WhatsApp text with one-click approve/reject links. The session
+    # must be authenticated once by scanning a QR (see scripts/whatsapp_setup).
+    waha_base_url: str = Field(default="http://127.0.0.1:3001")
+    waha_api_key: str = Field(default="")  # X-Api-Key header for WAHA
+    waha_session: str = Field(default="linkedin-agent")  # WAHA session name
+    waha_timeout_seconds: float = Field(default=20.0)
+    # Recipient chat id: "<countrycode><number>@c.us", e.g. 919876543210@c.us
+    whatsapp_recipient: str = Field(default="")
+
+    # --- Automation / scheduler (Phase 11) ----------------------------------
+    # Clicking "approve" on the WhatsApp link publishes to LinkedIn immediately
+    # (no second manual step). Set false to keep approve and publish separate.
+    auto_publish_on_approve: bool = Field(default=True)
+    # In-process APScheduler. Off by default so importing the app never starts
+    # background jobs unexpectedly (tests, ad-hoc runs); turn on in .env for prod.
+    scheduler_enabled: bool = Field(default=False)
+    scheduler_timezone: str = Field(default="Asia/Kolkata")  # IST
+    # Daily pipeline: collect → analyze → generate top-N → notify on WhatsApp.
+    daily_pipeline_hour: int = Field(default=10)
+    daily_pipeline_minute: int = Field(default=0)
+    daily_top_n: int = Field(default=3)  # drafts generated per daily run
+    daily_pipeline_prune: bool = Field(default=True)  # run retention after a run
+    # Weekly analytics report pushed to WhatsApp (day_of_week: mon..sun).
+    weekly_report_day: str = Field(default="mon")
+    weekly_report_hour: int = Field(default=9)
+    weekly_report_minute: int = Field(default=0)
 
     @property
     def is_production(self) -> bool:

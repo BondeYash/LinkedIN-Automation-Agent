@@ -3,122 +3,337 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Approval Dashboard</title>
+  <title>LinkedIn Agent — Console</title>
   <style>
-    :root { --bg:#0f172a; --card:#1e293b; --ink:#e2e8f0; --muted:#94a3b8; --line:#334155; }
+    :root { --bg:#0f172a; --card:#1e293b; --ink:#e2e8f0; --muted:#94a3b8; --line:#334155;
+            --blue:#2563eb; --green:#15803d; --amber:#b45309; --red:#b91c1c; --cyan:#7dd3fc; }
     * { box-sizing: border-box; }
     body { margin:0; font:15px/1.5 system-ui,sans-serif; background:var(--bg); color:var(--ink); }
-    header { padding:16px 24px; border-bottom:1px solid var(--line); display:flex; gap:12px; align-items:center; }
-    h1 { font-size:18px; margin:0; flex:1; }
-    main { max-width:880px; margin:0 auto; padding:24px; }
-    input, button { font:inherit; }
-    input { padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:#0b1220; color:var(--ink); }
-    button { padding:8px 14px; border-radius:8px; border:0; cursor:pointer; background:#2563eb; color:#fff; }
-    button.ghost { background:#334155; }
-    button.warn { background:#b45309; }
-    button.bad { background:#b91c1c; }
+    header { padding:14px 24px; border-bottom:1px solid var(--line); display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    h1 { font-size:18px; margin:0; flex:1; min-width:200px; }
+    input, button, select { font:inherit; }
+    input, select { padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:#0b1220; color:var(--ink); }
+    button { padding:8px 14px; border-radius:8px; border:0; cursor:pointer; background:var(--blue); color:#fff; }
+    button.ghost { background:#334155; } button.warn { background:var(--amber); } button.bad { background:var(--red); }
+    button.good { background:var(--green); }
+    button:disabled { opacity:.5; cursor:wait; }
+    nav { display:flex; gap:4px; padding:8px 24px 0; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+    nav button { background:transparent; color:var(--muted); border-bottom:2px solid transparent; border-radius:0; padding:8px 14px; }
+    nav button.active { color:var(--ink); border-bottom-color:var(--blue); }
+    main { max-width:980px; margin:0 auto; padding:24px; }
+    .panel { display:none; } .panel.active { display:block; }
     .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:16px; }
-    .meta { color:var(--muted); font-size:13px; margin-bottom:8px; display:flex; gap:14px; flex-wrap:wrap; }
+    .meta { color:var(--muted); font-size:13px; margin-bottom:8px; display:flex; gap:14px; flex-wrap:wrap; align-items:center; }
     .body { white-space:pre-wrap; background:#0b1220; padding:12px; border-radius:10px; margin:10px 0; }
-    .tags { color:#7dd3fc; font-size:13px; }
+    .tags { color:var(--cyan); font-size:13px; }
     .flags { color:#fca5a5; font-size:13px; margin-top:8px; }
     .actions { display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
     .pill { padding:2px 8px; border-radius:999px; background:#334155; font-size:12px; }
-    #login { display:flex; gap:8px; }
-    .hidden { display:none; }
+    .grid { display:flex; gap:10px; flex-wrap:wrap; }
+    .stat { background:#0b1220; border:1px solid var(--line); border-radius:10px; padding:10px 14px; min-width:120px; }
+    .stat b { display:block; font-size:22px; } .stat span { color:var(--muted); font-size:12px; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+    th { color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+    a { color:var(--cyan); }
+    .bar { height:6px; background:#0b1220; border-radius:4px; overflow:hidden; min-width:80px; }
+    .bar > i { display:block; height:100%; background:var(--blue); }
+    .out { font:12px/1.45 ui-monospace,monospace; white-space:pre-wrap; background:#0b1220; border:1px solid var(--line);
+           border-radius:10px; padding:10px; margin-top:8px; max-height:220px; overflow:auto; color:#cbd5e1; }
     .empty { color:var(--muted); text-align:center; padding:40px; }
+    .hidden { display:none; }
+    #login { display:flex; gap:8px; }
+    .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+    .toast { position:fixed; bottom:18px; right:18px; background:var(--card); border:1px solid var(--line);
+             border-radius:10px; padding:10px 14px; box-shadow:0 8px 24px rgba(0,0,0,.4); max-width:360px; }
   </style>
 </head>
 <body>
   <header>
-    <h1>LinkedIn Approval Dashboard</h1>
+    <h1>LinkedIn Agent — Console</h1>
     <form id="login">
       <input id="email" type="email" placeholder="email" value="admin@example.com" autocomplete="username">
       <input id="password" type="password" placeholder="password" autocomplete="current-password">
       <button type="submit">Log in</button>
     </form>
-    <button id="refresh" class="ghost hidden">Refresh</button>
+    <span id="whoami" class="pill hidden"></span>
+    <button id="logout" class="ghost hidden">Log out</button>
   </header>
+
+  <nav class="hidden" id="tabs">
+    <button data-tab="ops" class="active">Operations</button>
+    <button data-tab="trends">Trends</button>
+    <button data-tab="news">News</button>
+    <button data-tab="queue">Approval Queue</button>
+    <button data-tab="analytics">Analytics</button>
+  </nav>
+
   <main>
-    <div id="status" class="empty">Log in to load pending drafts.</div>
-    <div id="queue"></div>
+    <div id="gate" class="empty">Log in to load the console.</div>
+
+    <!-- OPERATIONS -->
+    <section class="panel" id="panel-ops">
+      <div class="card">
+        <strong>Pipeline jobs</strong>
+        <div class="meta">Run any step on demand. These are the same jobs the daily scheduler will chain (Phase 11).</div>
+        <div class="actions">
+          <button id="op-pipeline" class="good">▶ Run daily pipeline (collect → analyze → generate → notify)</button>
+          <button id="op-collect" class="ghost">Collect news</button>
+          <button id="op-trends" class="ghost">Analyze trends</button>
+          <button id="op-sync" class="ghost">Sync analytics</button>
+          <button id="op-prune" class="warn">Prune old data</button>
+        </div>
+        <div id="op-out" class="out hidden"></div>
+      </div>
+    </section>
+
+    <!-- TRENDS -->
+    <section class="panel" id="panel-trends">
+      <div class="card">
+        <div class="row">
+          <strong style="flex:1">Ranked topics</strong>
+          <select id="style-name"><option value="default">style: default</option></select>
+          <button id="trends-refresh" class="ghost">Refresh</button>
+        </div>
+        <div id="trends-body" class="empty">—</div>
+      </div>
+    </section>
+
+    <!-- NEWS -->
+    <section class="panel" id="panel-news">
+      <div class="card">
+        <div class="row">
+          <strong style="flex:1">Collected articles</strong>
+          <input id="news-source" placeholder="filter source (hackernews…)" style="width:200px">
+          <button id="news-refresh" class="ghost">Refresh</button>
+        </div>
+        <div id="news-body" class="empty">—</div>
+      </div>
+    </section>
+
+    <!-- QUEUE -->
+    <section class="panel" id="panel-queue">
+      <div class="row"><strong style="flex:1">Drafts awaiting review</strong>
+        <button id="queue-refresh" class="ghost">Refresh</button></div>
+      <div id="queue-body"></div>
+      <div id="queue-status" class="empty">—</div>
+    </section>
+
+    <!-- ANALYTICS -->
+    <section class="panel" id="panel-analytics">
+      <div class="card">
+        <div class="row"><strong style="flex:1">Weekly report</strong>
+          <button id="an-refresh" class="ghost">Refresh</button></div>
+        <div id="an-body" class="empty">—</div>
+      </div>
+    </section>
   </main>
 
   <script>
     let token = null;
     const $ = (id) => document.getElementById(id);
 
+    function toast(msg) {
+      const t = document.createElement("div"); t.className = "toast"; t.textContent = msg;
+      document.body.appendChild(t); setTimeout(() => t.remove(), 3500);
+    }
+    function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, c =>
+      ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c])); }
+    function num(n, d=2) { return n == null ? "—" : Number(n).toFixed(d); }
+    function when(s) { return s ? new Date(s).toLocaleString() : "—"; }
+
     async function api(path, opts = {}) {
       const res = await fetch(path, {
         ...opts,
-        headers: { "Content-Type": "application/json", ...(token ? { Authorization: "Bearer " + token } : {}), ...(opts.headers || {}) },
+        headers: { "Content-Type": "application/json",
+                   ...(token ? { Authorization: "Bearer " + token } : {}), ...(opts.headers || {}) },
       });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.status);
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || ("HTTP " + res.status));
       return res.status === 200 ? res.json() : null;
     }
+    // wraps a button click: disables, runs, re-enables
+    async function busy(btn, fn) {
+      const el = typeof btn === "string" ? $(btn) : btn;
+      const old = el.textContent; el.disabled = true; el.textContent = "…";
+      try { return await fn(); }
+      catch (e) { toast("Failed: " + e.message); throw e; }
+      finally { el.disabled = false; el.textContent = old; }
+    }
 
+    // --- auth -----------------------------------------------------------------
     $("login").addEventListener("submit", async (e) => {
       e.preventDefault();
       const form = new URLSearchParams();
-      form.set("username", $("email").value);
-      form.set("password", $("password").value);
+      form.set("username", $("email").value); form.set("password", $("password").value);
       try {
         const data = await fetch("/auth/login", { method: "POST", body: form }).then(r => {
           if (!r.ok) throw new Error("login failed"); return r.json();
         });
         token = data.access_token;
         $("login").classList.add("hidden");
-        $("refresh").classList.remove("hidden");
-        load();
-      } catch (err) { $("status").textContent = "Login failed."; }
+        $("logout").classList.remove("hidden");
+        $("whoami").classList.remove("hidden"); $("whoami").textContent = $("email").value;
+        $("tabs").classList.remove("hidden");
+        $("gate").classList.add("hidden");
+        show("ops"); loadTrends(); loadStyles();
+      } catch (err) { $("gate").textContent = "Login failed."; }
+    });
+    $("logout").addEventListener("click", () => location.reload());
+
+    // --- tabs -----------------------------------------------------------------
+    function show(tab) {
+      document.querySelectorAll("nav button").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+      document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + tab));
+      if (tab === "news") loadNews();
+      if (tab === "queue") loadQueue();
+      if (tab === "analytics") loadAnalytics();
+      if (tab === "trends") loadTrends();
+    }
+    document.querySelectorAll("nav button").forEach(b => b.onclick = () => show(b.dataset.tab));
+
+    // --- operations -----------------------------------------------------------
+    function opLog(label, data) {
+      const box = $("op-out"); box.classList.remove("hidden");
+      box.textContent = `[${new Date().toLocaleTimeString()}] ${label}\n` +
+        JSON.stringify(data, null, 2) + "\n\n" + box.textContent;
+    }
+    $("op-collect").onclick  = (e) => busy(e.target, async () => opLog("collect", await api("/news/collect", { method: "POST" })));
+    $("op-trends").onclick   = (e) => busy(e.target, async () => { opLog("analyze trends", await api("/trends/analyze", { method: "POST" })); loadTrends(); });
+    $("op-sync").onclick     = (e) => busy(e.target, async () => opLog("sync analytics", await api("/analytics/sync", { method: "POST" })));
+    $("op-prune").onclick    = (e) => busy(e.target, async () => opLog("prune", await api("/news/prune", { method: "POST" })));
+    $("op-pipeline").onclick = (e) => busy(e.target, async () => {
+      opLog("daily pipeline (collect→analyze→generate→notify)", await api("/ops/run-daily", { method: "POST" }));
+      loadTrends(); loadQueue();
+      toast("Daily pipeline done — drafts sent to WhatsApp + Approval Queue.");
     });
 
-    $("refresh").addEventListener("click", load);
-
-    async function act(id, action, payload) {
-      try { await api(`/approvals/${id}/${action}`, { method: "POST", body: JSON.stringify(payload || {}) }); load(); }
-      catch (err) { alert(action + " failed: " + err.message); }
+    // --- trends ---------------------------------------------------------------
+    async function loadStyles() {
+      try {
+        const styles = await api("/style");
+        if (styles && styles.length) {
+          $("style-name").innerHTML = styles.map(s => `<option value="${esc(s.name)}">style: ${esc(s.name)}</option>`).join("");
+        }
+      } catch (_) {}
     }
+    async function loadTrends() {
+      try {
+        const rows = await api("/trends?limit=50");
+        const max = Math.max(1, ...rows.map(r => r.score || 0));
+        $("trends-body").className = rows.length ? "" : "empty";
+        if (!rows.length) { $("trends-body").textContent = "No trends yet. Run Operations → Analyze trends."; return; }
+        $("trends-body").innerHTML = `<table><thead><tr>
+          <th>Topic</th><th>Score</th><th>Pop</th><th>Recency</th><th>Rel</th><th></th></tr></thead><tbody>` +
+          rows.map(r => `<tr>
+            <td>${esc(r.topic)}</td>
+            <td><div class="bar"><i style="width:${Math.round(100*(r.score||0)/max)}%"></i></div>${num(r.score)}</td>
+            <td>${num(r.popularity)}</td><td>${num(r.recency)}</td><td>${num(r.relevance)}</td>
+            <td><button class="good" data-topic="${r.topic_id}">Generate</button></td>
+          </tr>`).join("") + `</tbody></table>`;
+        $("trends-body").querySelectorAll("button[data-topic]").forEach(b =>
+          b.onclick = (e) => busy(e.target, async () => {
+            const post = await api("/generate", { method: "POST",
+              body: JSON.stringify({ topic_id: Number(b.dataset.topic), style_name: $("style-name").value }) });
+            toast(`Draft #${post.id} created → Approval Queue.`);
+          }));
+      } catch (e) { $("trends-body").className = "empty"; $("trends-body").textContent = "Failed: " + e.message; }
+    }
+    $("trends-refresh").onclick = loadTrends;
 
+    // --- news -----------------------------------------------------------------
+    async function loadNews() {
+      try {
+        const src = $("news-source").value.trim();
+        const rows = await api("/news?limit=100" + (src ? "&source=" + encodeURIComponent(src) : ""));
+        $("news-body").className = rows.length ? "" : "empty";
+        if (!rows.length) { $("news-body").textContent = "No articles. Run Operations → Collect news."; return; }
+        $("news-body").innerHTML = `<table><thead><tr>
+          <th>Source</th><th>Title</th><th>Collected</th></tr></thead><tbody>` +
+          rows.map(a => `<tr>
+            <td><span class="pill">${esc(a.source)}</span></td>
+            <td><a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.title)}</a></td>
+            <td>${when(a.collected_at)}</td>
+          </tr>`).join("") + `</tbody></table>`;
+      } catch (e) { $("news-body").className = "empty"; $("news-body").textContent = "Failed: " + e.message; }
+    }
+    $("news-refresh").onclick = loadNews;
+    $("news-source").addEventListener("keydown", e => { if (e.key === "Enter") loadNews(); });
+
+    // --- queue ----------------------------------------------------------------
+    async function act(id, action, payload) {
+      try { await api(`/approvals/${id}/${action}`, { method: "POST", body: JSON.stringify(payload || {}) }); loadQueue(); }
+      catch (err) { toast(action + " failed: " + err.message); }
+    }
     function card(p) {
-      const flags = p.review_notes ? `<div class="flags">⚠ ${JSON.stringify(p.review_notes)}</div>` : "";
+      const flags = p.review_notes ? `<div class="flags">⚠ ${esc(JSON.stringify(p.review_notes))}</div>` : "";
       const tags = (p.hashtags || []).map(t => "#" + t).join(" ");
-      const el = document.createElement("div");
-      el.className = "card";
+      const el = document.createElement("div"); el.className = "card";
       el.innerHTML = `
         <div class="meta">
-          <span class="pill">#${p.id}</span>
-          <span class="pill">${p.status}</span>
-          <span>${p.topic || "—"}</span>
-          <span>trend ${p.trend_score == null ? "—" : p.trend_score.toFixed(2)}</span>
+          <span class="pill">#${p.id}</span><span class="pill">${esc(p.status)}</span>
+          <span>${esc(p.topic || "—")}</span>
+          <span>trend ${p.trend_score == null ? "—" : Number(p.trend_score).toFixed(2)}</span>
         </div>
-        <strong>${p.headline || ""}</strong>
-        <div class="body">${(p.hook ? p.hook + "\n\n" : "") + p.body + (p.cta ? "\n\n" + p.cta : "")}</div>
-        <div class="tags">${tags}</div>
-        ${flags}
+        <strong>${esc(p.headline || "")}</strong>
+        <div class="body">${esc((p.hook ? p.hook + "\n\n" : "") + p.body + (p.cta ? "\n\n" + p.cta : ""))}</div>
+        <div class="tags">${esc(tags)}</div>${flags}
         <div class="actions">
-          <button>Approve</button>
+          <button class="good">Approve</button>
           <button class="ghost">Submit</button>
           <button class="warn">Regenerate</button>
           <button class="bad">Reject</button>
+          <button class="ghost">Publish</button>
         </div>`;
-      const [ap, sub, reg, rej] = el.querySelectorAll("button");
-      ap.onclick = () => act(p.id, "approve");
+      const [ap, sub, reg, rej, pub] = el.querySelectorAll("button");
+      ap.onclick  = () => act(p.id, "approve");
       sub.onclick = () => act(p.id, "submit");
       reg.onclick = () => act(p.id, "regenerate");
       rej.onclick = () => { const c = prompt("Reason (optional):") || null; act(p.id, "reject", { comment: c }); };
+      pub.onclick = (e) => busy(e.target, async () => { await api(`/publish/${p.id}`, { method: "POST" }); toast(`Post #${p.id} sent to LinkedIn.`); loadQueue(); });
       return el;
     }
-
-    async function load() {
+    async function loadQueue() {
       try {
         const items = await api("/approvals");
-        const q = $("queue"); q.innerHTML = "";
-        $("status").textContent = items.length ? "" : "No drafts awaiting review.";
-        $("status").className = items.length ? "" : "empty";
+        const q = $("queue-body"); q.innerHTML = "";
+        $("queue-status").textContent = items.length ? "" : "No drafts awaiting review.";
+        $("queue-status").className = items.length ? "hidden" : "empty";
         items.forEach(p => q.appendChild(card(p)));
-      } catch (err) { $("status").textContent = "Failed to load: " + err.message; }
+      } catch (err) { $("queue-status").className = "empty"; $("queue-status").textContent = "Failed: " + err.message; }
     }
+    $("queue-refresh").onclick = loadQueue;
+
+    // --- analytics ------------------------------------------------------------
+    function statRow(obj, keys) {
+      return `<div class="grid">` + keys.map(([k, label]) =>
+        `<div class="stat"><b>${obj && obj[k] != null ? obj[k] : "—"}</b><span>${label}</span></div>`).join("") + `</div>`;
+    }
+    async function loadAnalytics() {
+      try {
+        const data = await api("/analytics");
+        const r = data.report || {};
+        if (!r.post_count) { $("an-body").className = "empty";
+          $("an-body").textContent = "No analytics yet. Publish a post, then Operations → Sync analytics."; return; }
+        $("an-body").className = "";
+        const t = r.totals || {}, w = r.wow_delta || {};
+        const top = (r.top_posts || []).map(p =>
+          `<tr><td>#${p.post_id}</td><td>${esc(p.headline || "—")}</td><td>${p.likes ?? "—"}</td>
+           <td>${p.comments ?? "—"}</td><td>${num(p.eng_rate, 3)}</td></tr>`).join("");
+        const list = (arr, key) => (arr || []).map(x => `<span class="pill">${esc(x[key])}</span>`).join(" ") || "—";
+        $("an-body").innerHTML = `
+          <div class="meta">window ${r.window_days || 7} days · ${r.post_count} posts</div>
+          ${statRow(t, [["likes","likes"],["comments","comments"],["shares","shares"],["impressions","impressions"]])}
+          <div class="meta" style="margin-top:14px">Week over week</div>
+          ${statRow(w, [["this_week","this week"],["last_week","last week"],["delta","delta"]])}
+          <div class="meta" style="margin-top:14px">Top posts</div>
+          <table><thead><tr><th>ID</th><th>Headline</th><th>Likes</th><th>Comments</th><th>Eng</th></tr></thead>
+            <tbody>${top || `<tr><td colspan="5">—</td></tr>`}</tbody></table>
+          <div class="meta" style="margin-top:14px">Best topics</div>${list(r.best_topics, "topic")}
+          <div class="meta" style="margin-top:14px">Best hashtags</div>${list(r.best_hashtags, "hashtag")}
+          <div class="meta" style="margin-top:14px">Best hours</div>${list(r.best_hours, "hour")}`;
+      } catch (e) { $("an-body").className = "empty"; $("an-body").textContent = "Failed: " + e.message; }
+    }
+    $("an-refresh").onclick = loadAnalytics;
   </script>
 </body>
 </html>

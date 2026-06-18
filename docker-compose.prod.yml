@@ -1,0 +1,118 @@
+# Production stack — the "run forever" deployment.
+#
+# Everything the agent needs lives here as one compose project. Every long-lived
+# service has `restart: unless-stopped`, and because the Docker daemon is enabled
+# on boot (systemd), the whole stack auto-resumes after a reboot/crash/power-loss.
+# Run it on an always-on host (Oracle Cloud Ampere free tier) and the daily cron
+# + WhatsApp approvals + weekly report run 24/7 with no laptop involved.
+#
+# Public reachability (approve links from your phone, anywhere) is provided by the
+# cloudflared tunnel — NO inbound ports are opened on the VM except SSH.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# See DEPLOY.md for the full Oracle + Cloudflare walkthrough.
+
+services:
+  app:
+    build: .
+    container_name: linkedin_agent_app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Point at compose service names, overriding the localhost dev defaults.
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/linkedin_agent
+      OLLAMA_HOST: http://ollama:11434
+      CHROMA_HOST: http://chromadb:8000
+      WAHA_BASE_URL: http://waha:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+      waha:
+        condition: service_started
+    volumes:
+      - ./logs:/app/logs
+    # No host port mapping — cloudflared reaches the app over the compose network.
+    expose:
+      - "8000"
+
+  # Public HTTPS without opening ports / static IP. The named tunnel forwards your
+  # Cloudflare subdomain -> http://app:8000. Set PUBLIC_BASE_URL in .env to that
+  # https URL so the WhatsApp approve links resolve from your phone anywhere.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: linkedin_agent_cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - app
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: linkedin_agent_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: linkedin_agent
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: linkedin_agent_ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+
+  # One-shot: pull the model into the shared ollama volume on first boot, then exit.
+  # Idempotent — a second run is a no-op if the model is already present.
+  ollama-pull:
+    image: ollama/ollama:latest
+    container_name: linkedin_agent_ollama_pull
+    depends_on:
+      ollama:
+        condition: service_started
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c", "sleep 3 && ollama pull llama3.2:3b"]
+    restart: "no"
+
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: linkedin_agent_chromadb
+    restart: unless-stopped
+    volumes:
+      - chroma_data:/data
+
+  # WhatsApp HTTP API. The WEBJS session is persisted to a named volume, so the
+  # phone link survives restarts (scan the QR once, ever). WHATSAPP_START_SESSION
+  # auto-resumes the session on boot. No host port — scan the QR once over an SSH
+  # tunnel (see DEPLOY.md), then it just runs.
+  waha:
+    image: devlikeapro/waha:latest
+    container_name: linkedin_agent_waha
+    restart: unless-stopped
+    environment:
+      WAHA_API_KEY: ${WAHA_API_KEY}
+      WHATSAPP_DEFAULT_ENGINE: WEBJS
+      WHATSAPP_START_SESSION: ${WAHA_SESSION:-linkedin-agent}
+    volumes:
+      - waha_sessions:/app/.sessions
+    expose:
+      - "3000"
+
+volumes:
+  postgres_data:
+  ollama_data:
+  chroma_data:
+  waha_sessions:
