@@ -1,0 +1,77 @@
+name: LinkedIn Agent Cron
+
+# PC-off-proof cron. GitHub's schedulers run these in the cloud — no machine of
+# yours needs to be on. The daily job generates posts and emails them; the weekly
+# job sends the analytics report. State lives in a cloud Postgres (DATABASE_URL).
+#
+# Times are UTC (GitHub cron has no timezone). Scheduled runs can be delayed a few
+# minutes under load — fine for a daily content job.
+on:
+  schedule:
+    - cron: "30 4 * * *"    # 10:00 IST daily   (04:30 UTC)
+    - cron: "30 3 * * 1"    # 09:00 IST Monday  (03:30 UTC) — weekly report
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "Which job to run now"
+        default: daily
+        type: choice
+        options: [daily, weekly]
+
+concurrency:
+  group: agent-cron
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      ENVIRONMENT: production
+      LOG_LEVEL: INFO
+      # Cloud-only stack: hosted LLM, no local Ollama/Chroma, no in-process scheduler.
+      LLM_BACKEND: groq
+      GROQ_MODEL: llama-3.1-8b-instant
+      QUALITY_GATES_ENABLED: "false"   # dedup/fact-check need a vector store; skip in CI
+      SCHEDULER_ENABLED: "false"
+      NOTIFICATION_CHANNELS: log,smtp
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: "587"
+      # --- secrets (Settings → Secrets and variables → Actions) ---
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      PUBLIC_BASE_URL: ${{ secrets.PUBLIC_BASE_URL }}
+      LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+      LINKEDIN_AUTHOR_URN: ${{ secrets.LINKEDIN_AUTHOR_URN }}
+      SMTP_USER: ${{ secrets.SMTP_USER }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      SMTP_FROM: ${{ secrets.SMTP_USER }}
+      NOTIFY_TO_EMAIL: ${{ secrets.NOTIFY_TO_EMAIL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Apply database migrations
+        run: alembic upgrade head
+
+      - name: Pick job (weekly cron vs daily cron vs manual)
+        id: pick
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "job=${{ github.event.inputs.job }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "30 3 * * 1" ]; then
+            echo "job=weekly" >> "$GITHUB_OUTPUT"
+          else
+            echo "job=daily" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run ${{ steps.pick.outputs.job }} job
+        run: python scripts/run_job.py ${{ steps.pick.outputs.job }}

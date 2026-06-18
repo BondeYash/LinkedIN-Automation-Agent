@@ -111,10 +111,18 @@ class Settings(BaseSettings):
     # --- Notifications (Phase 7) ---------------------------------------------
     # Comma-separated channels to fan a PENDING draft out to. Unknown/unconfigured
     # channels fall back to the log notifier so the app always works offline.
-    notification_channels: str = Field(default="log")  # log,email,teams,sheets
+    notification_channels: str = Field(default="log")  # log,email,smtp,teams,sheets
     notify_to_email: str = Field(default="")  # approver inbox for email channel
     gmail_credentials_file: str = Field(default="")  # OAuth client secrets json
     gmail_token_file: str = Field(default=".secrets/gmail_token.json")
+    # SMTP email (the "smtp" channel) — simpler than Gmail OAuth for headless/CI
+    # runs (e.g. GitHub Actions). Use a Gmail App Password, not your login password.
+    smtp_host: str = Field(default="")  # e.g. smtp.gmail.com
+    smtp_port: int = Field(default=587)
+    smtp_user: str = Field(default="")
+    smtp_password: str = Field(default="")  # app password
+    smtp_from: str = Field(default="")  # defaults to smtp_user
+    smtp_timeout_seconds: float = Field(default=20.0)
     teams_webhook_url: str = Field(default="")  # incoming-webhook connector URL
     sheets_credentials_file: str = Field(default="")  # service-account json
     sheets_spreadsheet_id: str = Field(default="")
@@ -126,6 +134,10 @@ class Settings(BaseSettings):
     linkedin_access_token: str = Field(default="")  # member OAuth2 access token
     linkedin_author_urn: str = Field(default="")  # e.g. urn:li:person:xxxx
     linkedin_api_base: str = Field(default="https://api.linkedin.com")
+    # Versioned REST API (Community Management). Member post analytics
+    # (r_member_postAnalytics) requires the `LinkedIn-Version: YYYYMM` header and
+    # exists only from 202506 onward. Bump as LinkedIn sunsets old versions.
+    linkedin_version: str = Field(default="202506")
     linkedin_timeout_seconds: float = Field(default=20.0)
     # Retry budget for a transient publish failure (5xx/timeout/429). 4xx auth
     # errors are never retried — they fail fast so a bad token surfaces at once.

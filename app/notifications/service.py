@@ -18,6 +18,7 @@ from app.notifications.base import Notifier, NotifyPayload
 from app.notifications.email_notifier import EmailNotifier
 from app.notifications.log_notifier import LogNotifier
 from app.notifications.sheets_notifier import SheetsNotifier
+from app.notifications.smtp_email_notifier import SmtpEmailNotifier
 from app.notifications.teams_notifier import TeamsNotifier
 from app.notifications.whatsapp_notifier import WhatsAppNotifier
 from app.repositories.repos import NotificationRepository
@@ -28,6 +29,7 @@ _ACTIONS = ("approve", "reject", "regenerate")
 _BUILDERS = {
     "log": LogNotifier,
     "email": EmailNotifier,
+    "smtp": SmtpEmailNotifier,
     "teams": TeamsNotifier,
     "sheets": SheetsNotifier,
     "whatsapp": WhatsAppNotifier,
