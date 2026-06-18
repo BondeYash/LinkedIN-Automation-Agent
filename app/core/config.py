@@ -112,6 +112,23 @@ class Settings(BaseSettings):
     # errors are never retried — they fail fast so a bad token surfaces at once.
     publish_max_tries: int = Field(default=5)
 
+    # --- Analytics & feedback loop (Phase 9) ---------------------------------
+    # Engagement-rate weights: a comment is worth 2 likes, a share worth 3.
+    # eng_rate = (likes + w_comment·comments + w_share·shares) / impressions.
+    eng_weight_comment: float = Field(default=2.0)
+    eng_weight_share: float = Field(default=3.0)
+    # LinkedIn member tokens can read social counts (likes/comments) but usually
+    # NOT impressions (needs the organization analytics product). When impressions
+    # are unavailable we fall back to this assumed reach so eng_rate stays a usable
+    # relative signal instead of a divide-by-zero. Set 0 to leave eng_rate at 0.
+    analytics_assumed_impressions: int = Field(default=0)
+    analytics_window_days: int = Field(default=7)  # weekly report window
+    analytics_max_posts: int = Field(default=500)  # hard cap per sync run
+    # Feedback loop: how many top-engagement posts shape the optimization hints,
+    # and where those hints are written for the generator to read.
+    feedback_top_n: int = Field(default=5)
+    feedback_min_posts: int = Field(default=3)  # don't tune below this sample size
+
     # --- Collector sources (Phase 2) -----------------------------------------
     github_token: str = Field(default="")
     devto_api_key: str = Field(default="")

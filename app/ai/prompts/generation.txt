@@ -15,6 +15,9 @@ BRAND RULES (non-negotiable)
 GROUNDING FACTS (the only facts you may rely on — invent nothing beyond these)
 {facts}
 
+WHAT HAS WORKED (learned from past engagement — lean toward these, never at the cost of the brand rules)
+{optimization}
+
 TASK
 Write one original LinkedIn post about the topic, grounded ONLY in the facts above.
 Add genuine insight or a point of view — do not merely summarize. Never reproduce

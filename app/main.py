@@ -12,7 +12,17 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import admin, approval, auth, generate, news, publishing, style, trends
+from app.api import (
+    admin,
+    analytics,
+    approval,
+    auth,
+    generate,
+    news,
+    publishing,
+    style,
+    trends,
+)
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 
@@ -53,6 +63,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(approval.router)
     app.include_router(publishing.router)
+    app.include_router(analytics.router)
     app.include_router(admin.router)
     return app
 

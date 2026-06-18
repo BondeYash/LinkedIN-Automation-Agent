@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 _AI_DIR = Path(__file__).resolve().parent.parent / "ai" / "prompts"
 _PROMPT_PATH = _AI_DIR / "generation.txt"
 _REGEN_PATH = _AI_DIR / "regeneration.txt"
+_OPT_PATH = _AI_DIR / "optimization.txt"  # auto-tuned by the Phase 9 feedback loop
 _REQUIRED_KEYS = ("headline", "hook", "body", "cta", "hashtags")
 
 
@@ -43,6 +44,15 @@ class TopicNotFound(LookupError):
 @lru_cache(maxsize=4)
 def _load_template(path: str) -> str:
     return Path(path).read_text(encoding="utf-8")
+
+
+def _load_optimization() -> str:
+    """Read the auto-tuned hints fresh each call (the feedback loop rewrites the
+    file between generations). Missing file → a neutral placeholder."""
+    try:
+        return _OPT_PATH.read_text(encoding="utf-8").strip()
+    except OSError:
+        return "(none yet)"
 
 
 def parse_post_json(raw: str) -> dict:
@@ -198,6 +208,7 @@ class GeneratorService:
             style=json.dumps(style, ensure_ascii=False),
             brand_rules=self.settings.brand_rules,
             facts=fact_lines,
+            optimization=_load_optimization(),
         )
 
     @staticmethod

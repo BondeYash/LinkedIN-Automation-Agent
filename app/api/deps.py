@@ -21,6 +21,7 @@ from app.models.enums import UserRole
 from app.models.models import User
 from app.notifications.service import NotificationService
 from app.repositories.repos import (
+    AnalyticsRepository,
     ApprovalRepository,
     ArticleRepository,
     AuditLogRepository,
@@ -33,6 +34,9 @@ from app.repositories.repos import (
     TrendRepository,
     UserRepository,
 )
+from app.analyzers.analytics_service import AnalyticsService
+from app.analyzers.feedback import FeedbackTuner
+from app.analyzers.weekly_report import WeeklyReport
 from app.publishers.linkedin_publisher import LinkedInPublisher
 from app.services.approval_service import ApprovalService
 
@@ -102,6 +106,31 @@ def get_linkedin_publisher(
     audit: AuditLogRepository = Depends(get_audit_repo),
 ) -> LinkedInPublisher:
     return LinkedInPublisher(posts, publishing, audit=audit)
+
+
+def get_analytics_repo(db: Session = Depends(get_db)) -> AnalyticsRepository:
+    return AnalyticsRepository(db)
+
+
+def get_analytics_service(
+    analytics: AnalyticsRepository = Depends(get_analytics_repo),
+    publishing: PublishingRepository = Depends(get_publishing_repo),
+) -> AnalyticsService:
+    return AnalyticsService(analytics, publishing)
+
+
+def get_weekly_report(
+    analytics: AnalyticsRepository = Depends(get_analytics_repo),
+    posts: PostRepository = Depends(get_post_repo),
+    publishing: PublishingRepository = Depends(get_publishing_repo),
+) -> WeeklyReport:
+    return WeeklyReport(analytics, posts, publishing)
+
+
+def get_feedback_tuner(
+    posts: PostRepository = Depends(get_post_repo),
+) -> FeedbackTuner:
+    return FeedbackTuner(posts)
 
 
 # --- Authentication ----------------------------------------------------------

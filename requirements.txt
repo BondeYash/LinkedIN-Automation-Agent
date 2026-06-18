@@ -92,6 +92,7 @@ opentelemetry-semantic-conventions==0.63b1
 orjson==3.11.9
 overrides==7.7.0
 packaging==26.2
+pandas==2.3.3
 pluggy==1.6.0
 praw==8.0.1
 prawcore==4.0.0
@@ -117,6 +118,7 @@ python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
 python-jose==3.5.0
 python-multipart==0.0.32
+pytz==2026.2
 PyYAML==6.0.3
 RapidFuzz==3.14.5
 referencing==0.37.0
@@ -148,6 +150,7 @@ triton==3.7.0
 typer==0.25.1
 typing-inspection==0.4.2
 typing_extensions==4.15.0
+tzdata==2026.2
 update_checker==1.0.0
 uritemplate==4.2.0
 urllib3==2.7.0

@@ -10,8 +10,9 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import joinedload
 
-from app.models.enums import PostStatus
+from app.models.enums import PostStatus, PublishStatus
 from app.models.models import (
+    Analytics,
     Approval,
     Article,
     AuditLog,
@@ -221,3 +222,66 @@ class PublishingRepository(BaseRepository[PublishingHistory]):
             .limit(1)
         )
         return self.db.execute(stmt).scalar_one_or_none()
+
+    def published_post_ids(self) -> dict[int, str]:
+        """Map each post_id that was successfully published to its (latest)
+        LinkedIn share urn — the key the analytics client needs to pull metrics."""
+        stmt = (
+            select(PublishingHistory.post_id, PublishingHistory.linkedin_post_id)
+            .where(
+                PublishingHistory.status == PublishStatus.PUBLISHED,
+                PublishingHistory.linkedin_post_id.is_not(None),
+            )
+            .order_by(PublishingHistory.id.asc())  # later rows overwrite -> latest wins
+        )
+        return {pid: urn for pid, urn in self.db.execute(stmt).all()}
+
+
+class AnalyticsRepository(BaseRepository[Analytics]):
+    """Append-only engagement time-series. Each sync inserts a new row stamped
+    with `captured_at`; rows are never overwritten so trends stay visible."""
+
+    model = Analytics
+
+    def add(
+        self, post_id: int, *, likes: int, comments: int, shares: int, impressions: int
+    ) -> Analytics:
+        row = Analytics(
+            post_id=post_id,
+            likes=likes,
+            comments=comments,
+            shares=shares,
+            impressions=impressions,
+        )
+        self.db.add(row)
+        self.db.flush()
+        return row
+
+    def series_for_post(self, post_id: int) -> list[Analytics]:
+        """Full capture history for one post, oldest first."""
+        stmt = (
+            select(Analytics)
+            .where(Analytics.post_id == post_id)
+            .order_by(Analytics.captured_at.asc())
+        )
+        return list(self.db.execute(stmt).scalars().all())
+
+    def latest_per_post(self) -> list[Analytics]:
+        """The most recent capture for every post (one row per post)."""
+        sub = (
+            select(Analytics.post_id, func.max(Analytics.id).label("max_id"))
+            .group_by(Analytics.post_id)
+            .subquery()
+        )
+        stmt = select(Analytics).join(sub, Analytics.id == sub.c.max_id)
+        return list(self.db.execute(stmt).scalars().all())
+
+    def since(self, *, days: int) -> list[Analytics]:
+        """All captures within the last `days`, oldest first (report window)."""
+        cutoff = _utc_cutoff(days)
+        stmt = (
+            select(Analytics)
+            .where(Analytics.captured_at >= cutoff)
+            .order_by(Analytics.captured_at.asc())
+        )
+        return list(self.db.execute(stmt).scalars().all())
