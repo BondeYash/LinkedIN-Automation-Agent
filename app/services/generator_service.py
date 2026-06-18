@@ -209,14 +209,27 @@ class GeneratorService:
             brand_rules=self.settings.brand_rules,
             facts=fact_lines,
             optimization=_load_optimization(),
+            trending_hashtags=self._trending_hashtags(topic.name),
         )
+
+    def _trending_hashtags(self, topic_name: str) -> str:
+        """A ranked shortlist (live trends + proven + evergreen) injected into the
+        prompt to lift reach. Never raises — falls back to an empty marker."""
+        try:
+            from app.services.hashtag_service import HashtagService
+
+            tags = HashtagService(self.post_repo.db, self.settings).suggest(topic_name, limit=12)
+            return ", ".join(f"#{t}" for t in tags) if tags else "(none — use your judgement)"
+        except Exception:  # suggestion is best-effort; generation must not fail on it
+            logger.warning("trending hashtag build failed", exc_info=True)
+            return "(none — use your judgement)"
 
     @staticmethod
     def _clean_hashtags(value) -> list[str]:
         if not isinstance(value, list):
             return []
         out = []
-        for tag in value[:8]:
+        for tag in value[:10]:  # LinkedIn reach: a fuller broad+niche mix
             tag = str(tag).lstrip("#").strip()
             if tag:
                 out.append(tag)

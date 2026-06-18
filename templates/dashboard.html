@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LinkedIn Agent — Console</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
   <style>
     :root { --bg:#0f172a; --card:#1e293b; --ink:#e2e8f0; --muted:#94a3b8; --line:#334155;
             --blue:#2563eb; --green:#15803d; --amber:#b45309; --red:#b91c1c; --cyan:#7dd3fc; }
@@ -20,7 +21,7 @@
     nav { display:flex; gap:4px; padding:8px 24px 0; border-bottom:1px solid var(--line); flex-wrap:wrap; }
     nav button { background:transparent; color:var(--muted); border-bottom:2px solid transparent; border-radius:0; padding:8px 14px; }
     nav button.active { color:var(--ink); border-bottom-color:var(--blue); }
-    main { max-width:980px; margin:0 auto; padding:24px; }
+    main { max-width:1100px; margin:0 auto; padding:24px; }
     .panel { display:none; } .panel.active { display:block; }
     .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:16px; }
     .meta { color:var(--muted); font-size:13px; margin-bottom:8px; display:flex; gap:14px; flex-wrap:wrap; align-items:center; }
@@ -46,6 +47,17 @@
     .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
     .toast { position:fixed; bottom:18px; right:18px; background:var(--card); border:1px solid var(--line);
              border-radius:10px; padding:10px 14px; box-shadow:0 8px 24px rgba(0,0,0,.4); max-width:360px; }
+    .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:16px; }
+    .kpi { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; }
+    .kpi b { display:block; font-size:28px; line-height:1.15; }
+    .kpi span { color:var(--muted); font-size:12px; }
+    .kpi .delta { font-size:12px; margin-top:4px; } .up { color:#4ade80; } .down { color:#f87171; }
+    .charts { display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
+    .chart-card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px; min-width:0; }
+    .chart-card h3 { margin:4px 6px 8px; font-size:12px; color:var(--muted); font-weight:600;
+                     text-transform:uppercase; letter-spacing:.04em; }
+    .chart { width:100%; height:260px; }
+    @media (max-width:760px){ .charts { grid-template-columns:1fr; } }
   </style>
 </head>
 <body>
@@ -61,7 +73,8 @@
   </header>
 
   <nav class="hidden" id="tabs">
-    <button data-tab="ops" class="active">Operations</button>
+    <button data-tab="overview" class="active">📊 Overview</button>
+    <button data-tab="ops">Operations</button>
     <button data-tab="trends">Trends</button>
     <button data-tab="news">News</button>
     <button data-tab="queue">Approval Queue</button>
@@ -70,6 +83,24 @@
 
   <main>
     <div id="gate" class="empty">Log in to load the console.</div>
+
+    <!-- OVERVIEW — analytics dashboard (charts) -->
+    <section class="panel active" id="panel-overview">
+      <div class="row">
+        <strong style="flex:1">Analytics overview</strong>
+        <button id="ov-sync" class="ghost">Sync metrics</button>
+        <button id="ov-refresh" class="ghost">Refresh</button>
+      </div>
+      <div id="ov-kpis" class="kpis"></div>
+      <div class="charts">
+        <div class="chart-card"><h3>Engagement over time</h3><div id="ch-engagement" class="chart"></div></div>
+        <div class="chart-card"><h3>Trend drivers — top topics</h3><div id="ch-trends" class="chart"></div></div>
+        <div class="chart-card"><h3>News collection velocity</h3><div id="ch-news" class="chart"></div></div>
+        <div class="chart-card"><h3>Post pipeline funnel</h3><div id="ch-funnel" class="chart"></div></div>
+        <div class="chart-card"><h3>Best hours to post</h3><div id="ch-hours" class="chart"></div></div>
+        <div class="chart-card"><h3>Top hashtags by engagement</h3><div id="ch-hashtags" class="chart"></div></div>
+      </div>
+    </section>
 
     <!-- OPERATIONS -->
     <section class="panel" id="panel-ops">
@@ -175,7 +206,7 @@
         $("whoami").classList.remove("hidden"); $("whoami").textContent = $("email").value;
         $("tabs").classList.remove("hidden");
         $("gate").classList.add("hidden");
-        show("ops"); loadTrends(); loadStyles();
+        show("overview"); loadTrends(); loadStyles();
       } catch (err) { $("gate").textContent = "Login failed."; }
     });
     $("logout").addEventListener("click", () => location.reload());
@@ -184,6 +215,7 @@
     function show(tab) {
       document.querySelectorAll("nav button").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
       document.querySelectorAll(".panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + tab));
+      if (tab === "overview") loadOverview();
       if (tab === "news") loadNews();
       if (tab === "queue") loadQueue();
       if (tab === "analytics") loadAnalytics();
@@ -334,6 +366,102 @@
       } catch (e) { $("an-body").className = "empty"; $("an-body").textContent = "Failed: " + e.message; }
     }
     $("an-refresh").onclick = loadAnalytics;
+
+    // --- overview (charts dashboard) ------------------------------------------
+    const PLOT_FONT = { color:"#e2e8f0", family:"system-ui,sans-serif", size:11 };
+    const PLOT_CFG = { displayModeBar:false, responsive:true };
+    const COL = { blue:"#3b82f6", green:"#22c55e", amber:"#f59e0b", cyan:"#7dd3fc",
+                  violet:"#a78bfa", pink:"#f472b6", red:"#f87171" };
+    const PALETTE = [COL.blue, COL.green, COL.amber, COL.cyan, COL.violet, COL.pink, COL.red];
+    function baseLayout(extra) {
+      return Object.assign({
+        paper_bgcolor:"rgba(0,0,0,0)", plot_bgcolor:"rgba(0,0,0,0)", font:PLOT_FONT,
+        margin:{ l:46, r:14, t:10, b:38 }, showlegend:false,
+        xaxis:{ gridcolor:"#334155", zerolinecolor:"#334155", linecolor:"#334155" },
+        yaxis:{ gridcolor:"#334155", zerolinecolor:"#334155", linecolor:"#334155" },
+      }, extra || {});
+    }
+    function placeholder(el, msg) {
+      Plotly.purge(el);
+      $(el).innerHTML = `<div class="empty" style="padding:70px 10px;font-size:13px">${esc(msg)}</div>`;
+    }
+    function clip(s, n) { s = String(s || ""); return s.length > n ? s.slice(0, n - 1) + "…" : s; }
+
+    function renderKPIs(k) {
+      const pct = k.wow_pct;
+      const delta = pct == null ? "" :
+        `<div class="delta ${pct >= 0 ? "up" : "down"}">${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(1)}% WoW</div>`;
+      const cells = [
+        ["Total posts", k.total_posts], ["Published", k.published], ["In review", k.pending],
+        ["Articles", k.articles], ["Avg trend", num(k.avg_trend_score, 2)],
+        ["Week engagement", num(k.week_engagement, 1), delta],
+      ];
+      $("ov-kpis").innerHTML = cells.map(([label, val, extra]) =>
+        `<div class="kpi"><b>${val == null ? "—" : val}</b><span>${label}</span>${extra || ""}</div>`).join("");
+    }
+    function drawEngagement(s) {
+      if (!s.length) return placeholder("ch-engagement", "No engagement captured yet — publish, then Sync metrics.");
+      Plotly.react("ch-engagement", [{
+        x:s.map(p => p.date), y:s.map(p => p.engagement), type:"scatter", mode:"lines+markers",
+        line:{ color:COL.green, width:2 }, marker:{ color:COL.green, size:5 },
+        fill:"tozeroy", fillcolor:"rgba(34,197,94,.12)", hovertemplate:"%{x}<br>%{y} eng<extra></extra>",
+      }], baseLayout(), PLOT_CFG);
+    }
+    function drawTrends(s) {
+      if (!s.length) return placeholder("ch-trends", "No trends yet — run Operations → Analyze trends.");
+      const topics = s.map(t => clip(t.topic, 18));
+      const comp = [["popularity", COL.blue], ["recency", COL.amber], ["relevance", COL.violet]];
+      Plotly.react("ch-trends", comp.map(([k, c]) => ({
+        x:topics, y:s.map(t => t[k]), name:k, type:"bar", marker:{ color:c },
+      })), baseLayout({ barmode:"stack", showlegend:true,
+        legend:{ orientation:"h", y:1.18, x:0, font:{ ...PLOT_FONT, size:10 } },
+        xaxis:{ tickangle:-28, gridcolor:"#334155" } }), PLOT_CFG);
+    }
+    function drawNews(s) {
+      if (!s.length) return placeholder("ch-news", "No articles yet — run Operations → Collect news.");
+      const sources = [...new Set(s.flatMap(r => Object.keys(r).filter(k => k !== "date")))];
+      Plotly.react("ch-news", sources.map((src, i) => ({
+        x:s.map(r => r.date), y:s.map(r => r[src] || 0), name:src, type:"bar", marker:{ color:PALETTE[i % PALETTE.length] },
+      })), baseLayout({ barmode:"stack", showlegend:true,
+        legend:{ orientation:"h", y:1.22, x:0, font:{ ...PLOT_FONT, size:9 } } }), PLOT_CFG);
+    }
+    function drawFunnel(s) {
+      if (!s.length) return placeholder("ch-funnel", "—");
+      Plotly.react("ch-funnel", [{
+        type:"funnel", y:s.map(x => x.stage), x:s.map(x => x.count), textinfo:"value",
+        marker:{ color:[COL.cyan, COL.violet, COL.amber, COL.blue, COL.green] },
+      }], baseLayout({ margin:{ l:92, r:14, t:10, b:20 } }), PLOT_CFG);
+    }
+    function drawHours(s) {
+      if (!s.length) return placeholder("ch-hours", "No engagement data yet.");
+      Plotly.react("ch-hours", [{
+        x:s.map(h => h.hour + ":00"), y:s.map(h => h.avg_engagement), type:"bar", marker:{ color:COL.amber },
+      }], baseLayout(), PLOT_CFG);
+    }
+    function drawHashtags(s) {
+      if (!s.length) return placeholder("ch-hashtags", "No hashtag performance yet.");
+      const top = s.slice(0, 8).reverse();
+      Plotly.react("ch-hashtags", [{
+        x:top.map(h => h.avg_engagement), y:top.map(h => "#" + clip(h.hashtag, 16)), type:"bar", orientation:"h",
+        marker:{ color:COL.cyan },
+      }], baseLayout({ margin:{ l:130, r:14, t:10, b:30 } }), PLOT_CFG);
+    }
+    async function loadOverview() {
+      try {
+        const d = await api("/analytics/dashboard");
+        renderKPIs(d.kpis || {});
+        drawEngagement(d.engagement_series || []);
+        drawTrends(d.trend_snapshot || []);
+        drawNews(d.news_velocity || []);
+        drawFunnel(d.funnel || []);
+        drawHours(d.best_hours || []);
+        drawHashtags(d.best_hashtags || []);
+      } catch (e) { toast("Overview failed: " + e.message); }
+    }
+    $("ov-refresh").onclick = (e) => busy(e.target, loadOverview);
+    $("ov-sync").onclick = (e) => busy(e.target, async () => {
+      await api("/analytics/sync", { method: "POST" }); toast("Metrics synced."); loadOverview();
+    });
   </script>
 </body>
 </html>

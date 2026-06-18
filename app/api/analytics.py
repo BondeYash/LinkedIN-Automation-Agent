@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
 from app.api.deps import (
     get_analytics_service,
@@ -20,8 +21,10 @@ from app.api.deps import (
     require_role,
 )
 from app.analyzers.analytics_service import AnalyticsService
+from app.analyzers.dashboard_metrics import DashboardMetrics
 from app.analyzers.feedback import FeedbackTuner
 from app.analyzers.weekly_report import WeeklyReport
+from app.database.session import get_db
 from app.models.enums import UserRole
 from app.models.models import User
 from app.schemas.analytics import AnalyticsOut, SyncResultOut
@@ -37,6 +40,17 @@ async def get_analytics(
     user: User = Depends(get_current_user),
 ) -> AnalyticsOut:
     return AnalyticsOut(report=report.build())
+
+
+@router.get("/dashboard")
+async def get_dashboard(
+    db: Session = Depends(get_db),
+    report: WeeklyReport = Depends(get_weekly_report),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Consolidated, chart-ready metrics for the analytics dashboard (KPIs, funnel,
+    news velocity, engagement time-series, trend snapshot, reach insights)."""
+    return DashboardMetrics(db, report).build()
 
 
 @router.post("/sync", response_model=SyncResultOut)

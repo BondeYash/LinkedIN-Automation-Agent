@@ -1,9 +1,10 @@
 """WhatsApp notifier — sends an approval request over WAHA.
 
 Disabled (skipped) unless both `waha_api_key` and `whatsapp_recipient` are set,
-so the app still runs offline. The message is the plain-text draft preview plus
-the one-click approve/reject/regenerate links; tapping "approve" publishes to
-LinkedIn straight away when `auto_publish_on_approve` is on.
+so the app still runs offline. The message is intentionally short — just the
+topic (and a one-line headline) plus the one-click approve/reject/regenerate
+links, not the full draft — so it reads cleanly on a phone. Tapping "approve"
+publishes to LinkedIn straight away when `auto_publish_on_approve` is on.
 """
 
 from __future__ import annotations
@@ -31,13 +32,15 @@ class WhatsAppNotifier:
     @staticmethod
     def _render(payload: NotifyPayload) -> str:
         post = payload.post
+        topic = post.topic.name if post.topic else f"Post #{post.id}"
         lines = [
-            f"📝 *Draft #{post.id} awaiting approval*",
-            "",
-            payload.preview,
-            "",
-            "— Tap to act —",
+            f"📝 *New post idea #{post.id}*",
+            f"*Topic:* {topic}",
         ]
+        # One-line headline for context — still not the full draft.
+        if post.headline:
+            lines.append(f"_{post.headline.strip()}_")
+        lines += ["", "— Tap to act —"]
         for action, url in payload.links.items():
             lines.append(f"{_LABELS.get(action, action.title())}: {url}")
         return "\n".join(lines).strip()
